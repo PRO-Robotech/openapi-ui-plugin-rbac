@@ -1,5 +1,5 @@
 import React, { FC } from 'react'
-import { Greeting } from 'components'
+import { RbacGraph } from 'components'
 
 type TRbacPageProps = {
   cluster?: string
@@ -10,6 +10,6 @@ type TRbacPageProps = {
   toggleTheme?: () => void
 }
 
-export const RbacPage: FC<TRbacPageProps> = props => {
-  return <Greeting {...props} />
+export const RbacPage: FC<TRbacPageProps> = ({ cluster }) => {
+  return <RbacGraph clusterId={cluster ?? ''} />
 }

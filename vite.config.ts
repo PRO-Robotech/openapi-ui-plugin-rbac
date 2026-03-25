@@ -3,6 +3,18 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react-swc'
 import federation from '@originjs/vite-plugin-federation'
 
+const sharedPackages = {
+  react: { requiredVersion: false },
+  'react-dom': { requiredVersion: false },
+  'react-router-dom': { requiredVersion: false },
+  'react-redux': { requiredVersion: false },
+  '@reduxjs/toolkit': { requiredVersion: false },
+  '@tanstack/react-query': { requiredVersion: false },
+  '@xyflow/react': { requiredVersion: false },
+  antd: { requiredVersion: false },
+  'styled-components': { requiredVersion: false },
+} as const
+
 export default defineConfig({
   plugins: [
     react(),
@@ -12,7 +24,7 @@ export default defineConfig({
       exposes: {
         './App': './src/App.tsx', // must match what host calls getRemote()
       },
-      shared: ['react', 'react-dom', 'antd', 'react-router-dom', 'react-redux', '@reduxjs/toolkit'],
+      shared: sharedPackages,
     }),
   ],
   build: {
@@ -23,6 +35,7 @@ export default defineConfig({
   },
   publicDir: 'public',
   resolve: {
+    dedupe: ['react', 'react-dom'],
     alias: {
       api: path.resolve(__dirname, './src/api'),
       components: path.resolve(__dirname, './src/components'),
@@ -39,6 +52,6 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 9025,
-    open: '/openapi-ui-plugin',
+    open: '/openapi-ui-plugin-rbac',
   },
 })

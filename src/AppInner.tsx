@@ -28,11 +28,11 @@ export const AppInner: FC<TAppInnerProps> = ({
 
   return (
     <Routes>
-      <Route index element={<Navigate to="rbac-page" replace />} />
+      <Route index element={<Navigate to="rbac" replace />} />
 
       {/* NOTE: paths are RELATIVE to /.../plugins/:pluginName/* */}
       <Route
-        path="rbac-page"
+        path="rbac"
         element={
           <RbacPage
             cluster={cluster}
