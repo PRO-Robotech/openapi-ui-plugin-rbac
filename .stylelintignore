@@ -1,0 +1,12 @@
+build/
+public/
+node_modules/
+*.woff
+*.ico
+*.png
+*.mdx
+*.svg
+*.jpg
+.history
+src/index.css
+

@@ -1,0 +1,6 @@
+**/build/*
+**/public/*
+**/server/*
+**/node_modules/*
+!src/
+vite.config.ts

@@ -1,6 +1,6 @@
 # 🤝 Contributing Guidelines
 
-Thank you for contributing to **openapi-ui-plugin-example**.
+Thank you for contributing to **openapi-ui-plugin-rbac**.
 This project has strict conventions to keep the codebase consistent, maintainable, and scalable.
 
 Please read these rules carefully before opening a Pull Request.

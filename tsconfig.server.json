@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "baseUrl": "server",
+    "target": "esnext",
+    "lib": ["esnext"],
+    "module": "CommonJS",
+    "allowJs": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "noFallthroughCasesInSwitch": true,
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "outDir": "./build",
+    "noImplicitAny": false
+  },
+  "include": ["server", "server/**/*.ts"],
+  "exclude": ["node_modules"]
+}
