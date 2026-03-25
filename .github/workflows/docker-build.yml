@@ -2,6 +2,7 @@ name: release
 on:
   push:
     branches:
+      - main
       - master
       - develop
       - release/*
@@ -27,8 +28,8 @@ jobs:
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.CUSTOM_DOCKERHUB_USERNAME }}
-          password: ${{ secrets.CUSTOM_DOCKERHUB_TOKEN }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Sanitize branch name
         id: sanitize
@@ -41,6 +42,6 @@ jobs:
           file: ./Dockerfile.build
           builder: default
           push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ secrets.CUSTOM_DOCKERHUB_USERNAME }}/openapi-ui-plugin-rbac:${{ steps.sanitize.outputs.branch }}-${{ steps.short-sha.outputs.sha }}
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/openapi-ui-plugin-rbac:${{ steps.sanitize.outputs.branch }}-${{ steps.short-sha.outputs.sha }}
           build-args: |
             NODE_VERSION=${{ env.NODE_VERSION }}
