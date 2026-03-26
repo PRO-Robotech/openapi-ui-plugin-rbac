@@ -11,7 +11,43 @@ import {
 import { Button, Checkbox, Collapse, Input, InputNumber, Select, theme } from 'antd'
 import type { CollapseProps } from 'antd'
 import type { TRbacQueryPayload } from 'localTypes/rbacGraph'
+import { DEFAULT_SPEC } from './constants'
+import {
+  updateSpec,
+  updateSelector,
+  getPrimarySelectorCount,
+  getScopeIdentityCount,
+  getRuntimeLimitsCount,
+} from './utils'
 import { Styled } from './styled'
+
+type TSectionLabelOptions = {
+  colorPrimary: string
+  colorFillSecondary: string
+  borderRadiusLG: number
+}
+
+const createSectionLabel = (
+  icon: ReactNode,
+  title: string,
+  activeCount: number,
+  { colorPrimary, colorFillSecondary, borderRadiusLG }: TSectionLabelOptions,
+) => (
+  <Styled.SectionLabel>
+    <Styled.SectionLabelMain>
+      <Styled.SectionIcon $color={colorPrimary}>{icon}</Styled.SectionIcon>
+      <span>{title}</span>
+    </Styled.SectionLabelMain>
+    <Styled.ActiveBadge
+      $background={colorFillSecondary}
+      $borderRadiusLG={borderRadiusLG}
+      $color={colorPrimary}
+      $visible={activeCount > 0}
+    >
+      {activeCount > 0 ? `${activeCount} active` : '0 active'}
+    </Styled.ActiveBadge>
+  </Styled.SectionLabel>
+)
 
 type TSelectorOption = {
   label: string
@@ -43,88 +79,6 @@ type TRbacQueryFormProps = {
   onReset: () => void
   loading: boolean
 }
-
-type TSectionLabelOptions = {
-  colorPrimary: string
-  colorFillSecondary: string
-  borderRadiusLG: number
-}
-
-const DEFAULT_SPEC: TRbacQueryPayload['spec'] = {
-  selector: {
-    apiGroups: [],
-    resources: [],
-    verbs: [],
-    resourceNames: [],
-    nonResourceURLs: [],
-  },
-  matchMode: 'any',
-  includeRuleMetadata: true,
-  includePods: false,
-  includeWorkloads: false,
-  podPhaseMode: 'active',
-  maxPodsPerSubject: 20,
-  maxWorkloadsPerPod: 10,
-}
-
-const updateSpec = (prev: TRbacQueryPayload, patch: Partial<TRbacQueryPayload['spec']>): TRbacQueryPayload => ({
-  spec: { ...prev.spec, ...patch },
-})
-
-const updateSelector = (
-  prev: TRbacQueryPayload,
-  patch: Partial<TRbacQueryPayload['spec']['selector']>,
-): TRbacQueryPayload => ({
-  spec: { ...prev.spec, selector: { ...prev.spec.selector, ...patch } },
-})
-
-const createSectionLabel = (
-  icon: ReactNode,
-  title: string,
-  activeCount: number,
-  { colorPrimary, colorFillSecondary, borderRadiusLG }: TSectionLabelOptions,
-) => (
-  <Styled.SectionLabel>
-    <Styled.SectionLabelMain>
-      <Styled.SectionIcon $color={colorPrimary}>{icon}</Styled.SectionIcon>
-      <span>{title}</span>
-    </Styled.SectionLabelMain>
-    <Styled.ActiveBadge
-      $background={colorFillSecondary}
-      $borderRadiusLG={borderRadiusLG}
-      $color={colorPrimary}
-      $visible={activeCount > 0}
-    >
-      {activeCount > 0 ? `${activeCount} active` : '0 active'}
-    </Styled.ActiveBadge>
-  </Styled.SectionLabel>
-)
-
-const getPrimarySelectorCount = (spec: TRbacQueryPayload['spec'], selectedApiVersions: string[]) =>
-  [
-    spec.selector.apiGroups,
-    selectedApiVersions,
-    spec.selector.resources,
-    spec.selector.verbs,
-    spec.selector.resourceNames,
-    spec.selector.nonResourceURLs,
-  ].filter(values => values.length > 0).length
-
-const getScopeIdentityCount = (spec: TRbacQueryPayload['spec']) =>
-  [
-    spec.matchMode !== DEFAULT_SPEC.matchMode,
-    Boolean(spec.namespaceScope?.namespaces?.length),
-    Boolean(spec.namespaceScope?.strict),
-    Boolean(spec.impersonateUser),
-    Boolean(spec.impersonateGroup),
-  ].filter(Boolean).length
-
-const getRuntimeLimitsCount = (spec: TRbacQueryPayload['spec']) =>
-  [
-    spec.podPhaseMode !== DEFAULT_SPEC.podPhaseMode,
-    spec.maxPodsPerSubject !== DEFAULT_SPEC.maxPodsPerSubject,
-    spec.maxWorkloadsPerPod !== DEFAULT_SPEC.maxWorkloadsPerPod,
-  ].filter(Boolean).length
 
 export const RbacQueryForm: FC<TRbacQueryFormProps> = ({
   value,

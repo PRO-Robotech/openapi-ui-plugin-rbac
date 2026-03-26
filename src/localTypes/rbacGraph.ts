@@ -1,3 +1,5 @@
+import { type Node, type Edge } from '@xyflow/react'
+
 export type TRbacNodeType =
   | 'role'
   | 'clusterRole'
@@ -104,4 +106,56 @@ export type TRbacGraphOptions = {
   reduceEdgeCrossings: boolean
   includePods: boolean
   includeWorkloads: boolean
+}
+
+export type TRbacGraphProps = {
+  clusterId: string
+}
+
+export type TNonResourceUrlItem = {
+  url: string
+  verbs: string[]
+  roles: string[]
+}
+
+export type TNonResourceUrlList = {
+  items: TNonResourceUrlItem[]
+}
+
+export type TFlowModel = {
+  nodes: Node[]
+  edges: Edge[]
+}
+
+export type TRawRuleRef = TRbacRuleRef & {
+  apiGroup?: string
+  resource?: string
+  subresource?: string
+  verb?: string
+  nonResourceURL?: string
+  sourceObjectUID?: string
+  sourceRuleIndex?: number
+  phantom?: boolean
+  expandedRefs?: TRawRuleRef[]
+}
+
+export type TParsedPermission = {
+  id: string
+  label: string
+  verb: string
+  target: string
+  ruleKeys: string[]
+  apiGroups: string[]
+}
+
+export type TRoleRuleDetail = {
+  key: string
+  ruleRef: TRbacRuleRef
+  expandedPermissionCount: number
+}
+
+export type TRoleDetails = {
+  node: TRbacNode
+  rules: TRoleRuleDetail[]
+  permissions: TParsedPermission[]
 }

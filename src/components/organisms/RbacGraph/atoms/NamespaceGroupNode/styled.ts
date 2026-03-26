@@ -21,4 +21,7 @@ const Label = styled.div`
   color: var(--ns-label, #8c8c8c);
 `
 
-export const Styled = { GroupContainer, Label }
+export const Styled = {
+  GroupContainer,
+  Label,
+}

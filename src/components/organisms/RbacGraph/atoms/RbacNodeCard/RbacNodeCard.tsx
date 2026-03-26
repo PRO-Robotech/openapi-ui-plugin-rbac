@@ -3,6 +3,7 @@ import { Handle, Position, type NodeProps } from '@xyflow/react'
 import { theme } from 'antd'
 import type { TRbacNodeType } from 'localTypes/rbacGraph'
 import { RbacResourceLabel } from '../RbacResourceLabel'
+import { NODE_COLORS, RULE_COUNT_NODE_TYPES } from './constants'
 import { Styled } from './styled'
 
 type TRbacNodeData = {
@@ -21,24 +22,12 @@ type TRbacNodeData = {
   badgeValue?: string
 }
 
-const NODE_COLORS: Record<TRbacNodeType, string> = {
-  role: '#0f766e',
-  clusterRole: '#0f766e',
-  roleBinding: '#6366f1',
-  clusterRoleBinding: '#6366f1',
-  aggregationRelation: '#c2410c',
-  permission: '#2563eb',
-  pod: '#0ea5a4',
-  podOverflow: '#0ea5a4',
-  workload: '#7c3aed',
-  workloadOverflow: '#7c3aed',
-  subject: '#475569',
+type TRbacNodeCardProps = NodeProps & {
+  data: TRbacNodeData
 }
 
-const RULE_COUNT_NODE_TYPES = new Set<TRbacNodeType>(['role', 'clusterRole', 'roleBinding', 'clusterRoleBinding'])
-
 // eslint-disable-next-line react/prop-types
-export const RbacNodeCard: FC<NodeProps> = memo(({ data, selected }) => {
+export const RbacNodeCard: FC<TRbacNodeCardProps> = memo(({ data, selected }) => {
   const { token } = theme.useToken()
   const {
     label,

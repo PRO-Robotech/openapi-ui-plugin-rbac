@@ -1,4 +1,4 @@
-import React, { memo } from 'react'
+import React, { FC, memo } from 'react'
 import { type NodeProps } from '@xyflow/react'
 import { theme } from 'antd'
 import { Styled } from './styled'
@@ -7,8 +7,10 @@ type TNamespaceGroupData = {
   namespace: string
 }
 
+type TNamespaceGroupNodeProps = NodeProps & { data: TNamespaceGroupData }
+
 // eslint-disable-next-line react/prop-types
-export const NamespaceGroupNode: React.FC<NodeProps> = memo(({ data }) => {
+export const NamespaceGroupNode: FC<TNamespaceGroupNodeProps> = memo(({ data }) => {
   const { token } = theme.useToken()
   // eslint-disable-next-line react/prop-types
   const { namespace } = data as TNamespaceGroupData

@@ -6,17 +6,6 @@ type TContainerProps = {
   $borderRadiusLG: number
 }
 
-type TColorProps = {
-  $color: string
-}
-
-type TActiveBadgeProps = {
-  $borderRadiusLG: number
-  $background: string
-  $color: string
-  $visible: boolean
-}
-
 const Container = styled.div<TContainerProps>`
   display: flex;
   flex-direction: column;
@@ -70,6 +59,10 @@ const TitleRow = styled.div`
   align-items: center;
   gap: 8px;
 `
+
+type TColorProps = {
+  $color: string
+}
 
 const TitleIcon = styled.span<TColorProps>`
   display: inline-flex;
@@ -126,6 +119,13 @@ const SectionIcon = styled.span<TColorProps>`
   font-size: 18px;
   color: ${({ $color }) => $color};
 `
+
+type TActiveBadgeProps = {
+  $borderRadiusLG: number
+  $background: string
+  $color: string
+  $visible: boolean
+}
 
 const ActiveBadge = styled.span<TActiveBadgeProps>`
   display: inline-flex;

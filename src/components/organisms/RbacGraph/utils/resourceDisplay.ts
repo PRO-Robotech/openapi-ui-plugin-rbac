@@ -1,11 +1,5 @@
 import type { TKindWithVersion } from '@prorobotech/openapi-k8s-toolkit'
 
-type TResolveResourceDisplayArgs = {
-  apiGroups?: string[]
-  kindsWithVersion: TKindWithVersion[]
-  value: string
-}
-
 const normalizeValue = (value: string) => value.trim().toLowerCase()
 
 const sortKinds = (left: TKindWithVersion, right: TKindWithVersion) => {
@@ -26,7 +20,11 @@ export const resolveResourceDisplayValue = ({
   apiGroups,
   kindsWithVersion,
   value,
-}: TResolveResourceDisplayArgs): string => {
+}: {
+  apiGroups?: string[]
+  kindsWithVersion: TKindWithVersion[]
+  value: string
+}): string => {
   const trimmedValue = value.trim()
 
   if (!trimmedValue || trimmedValue.includes('/') || trimmedValue.includes('*')) {

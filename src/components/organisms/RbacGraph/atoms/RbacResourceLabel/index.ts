@@ -1,0 +1,1 @@
+export { RbacResourceLabel } from './RbacResourceLabel'

@@ -1,6 +1,9 @@
 import React, { FC, useMemo } from 'react'
 import { Collapse, Select, Spin } from 'antd'
 import type { TKindWithVersion } from '@prorobotech/openapi-k8s-toolkit'
+import { TFilterKey } from './types'
+import { FILTER_LABELS } from './constants'
+import { normalizeGroupValue, denormalizeGroupValue } from './utils'
 import { Styled } from './styled'
 
 type TRbacSelectorBuilderProps = {
@@ -21,17 +24,6 @@ type TRbacSelectorBuilderProps = {
     nonResourceURLs: string[]
   }) => void
 }
-
-type TFilterKey = 'verbs' | 'nonResourceURLs'
-
-const FILTER_LABELS: Record<TFilterKey, string> = {
-  verbs: 'Verbs',
-  nonResourceURLs: 'Non-Resource URLs',
-}
-const CORE_GROUP_VALUE = '__core__'
-
-const normalizeGroupValue = (value: string) => (value === '' ? CORE_GROUP_VALUE : value)
-const denormalizeGroupValue = (value: string) => (value === CORE_GROUP_VALUE ? '' : value)
 
 export const RbacSelectorBuilder: FC<TRbacSelectorBuilderProps> = ({
   kindsWithVersion,
