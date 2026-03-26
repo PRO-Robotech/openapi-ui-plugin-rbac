@@ -41,13 +41,17 @@ type TForceLink = SimulationLinkDatum<TNodeDatum> & {
 }
 
 export type TPositionMap = Map<string, { x: number; y: number }>
+
 export type TNamespaceBounds = { x: number; y: number; width: number; height: number }
+
 export type TRoutePoint = { x: number; y: number }
+
 export type TRbacLayoutResult = {
   positions: TPositionMap
   namespaceBounds?: Map<string, TNamespaceBounds>
   edgeRoutes?: Map<string, TRoutePoint[]>
 }
+
 type TNamespaceLayout = {
   width: number
   height: number

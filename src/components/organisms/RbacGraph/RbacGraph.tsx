@@ -14,17 +14,21 @@ import {
   type NodeTypes,
   type EdgeTypes,
 } from '@xyflow/react'
-import { TKindWithVersion, useKinds, useK8sSmartResource } from '@prorobotech/openapi-k8s-toolkit'
 import '@xyflow/react/dist/style.css'
+import { useKinds, useK8sSmartResource } from '@prorobotech/openapi-k8s-toolkit'
 import { Alert, Button, Card, Checkbox, Collapse, Empty, Modal, Spin, Tag, Typography, theme } from 'antd'
 import { FOOTER_HEIGHT } from 'constants/blocksSizes'
 import type {
-  TRbacRuleRef,
   TRbacQueryPayload,
   TRbacQueryResponse,
   TRbacGraphOptions,
   TRbacGraph as TGraph,
   TRbacNode,
+  TRbacGraphProps,
+  TNonResourceUrlItem,
+  TNonResourceUrlList,
+  TFlowModel,
+  TParsedPermission,
 } from 'localTypes/rbacGraph'
 import { useRbacGraphQuery } from 'hooks/useRbacGraphQuery'
 import { layoutRbacGraph } from 'utils/rbacForceLayout'
@@ -35,343 +39,28 @@ import {
   applyStarSelectionToModel,
   filterGraphByOptions,
 } from 'utils/rbacFlowAdapter'
-import { RbacNodeCard } from './atoms/RbacNodeCard'
-import { RbacResourceLabel } from './atoms/RbacResourceLabel'
-import { RbacEdge } from './atoms/RbacEdge'
-import { NamespaceGroupNode } from './atoms/NamespaceGroupNode'
-import { RbacQueryForm } from './molecules/RbacQueryForm'
-import { RbacGraphToggles } from './molecules/RbacGraphToggles'
+import { NamespaceGroupNode, RbacEdge, RbacNodeCard, RbacResourceLabel } from './atoms'
+import { RbacQueryForm, RbacGraphToggles } from './molecules'
+import {
+  resolveResourceDisplayValue,
+  shouldShowResolvedResourceBadge,
+  hasWildcard,
+  toSortedOptions,
+  sortValues,
+  formatJoinedValues,
+  formatRuleTarget,
+  formatRuleVerb,
+  formatApiGroups,
+  collectRoleDetails,
+  hasWildcardValue,
+  hasConcreteResourceValues,
+  decorateFlowModelWithResourceLabels,
+} from './utils'
+import { LEGEND, DEFAULT_PAYLOAD, DEFAULT_OPTIONS, EMPTY_SELECTOR_SELECTION, ROLE_NODE_TYPES } from './constants'
 import { Styled } from './styled'
-import { resolveResourceDisplayValue, shouldShowResolvedResourceBadge } from './utils/resourceDisplay'
 
-const nodeTypes: NodeTypes = { rbacCard: RbacNodeCard, namespaceGroup: NamespaceGroupNode }
-const edgeTypes: EdgeTypes = { rbacEdge: RbacEdge }
-
-const LEGEND = [
-  { label: 'Grants', color: '#0f766e' },
-  { label: 'Subjects', color: '#475569' },
-  { label: 'Aggregates', color: '#c2410c', dashed: true },
-  { label: 'Permissions', color: '#2563eb' },
-  { label: 'Runs As', color: '#0ea5a4' },
-  { label: 'Owned By', color: '#334155' },
-]
-
-const DEFAULT_PAYLOAD: TRbacQueryPayload = {
-  spec: {
-    selector: { apiGroups: [], resources: [], verbs: [], resourceNames: [], nonResourceURLs: [] },
-    matchMode: 'any',
-    includeRuleMetadata: true,
-    includePods: false,
-    includeWorkloads: false,
-    podPhaseMode: 'active',
-    maxPodsPerSubject: 20,
-    maxWorkloadsPerPod: 10,
-  },
-}
-
-const DEFAULT_OPTIONS: TRbacGraphOptions = {
-  showRoles: true,
-  showBindings: true,
-  showSubjects: true,
-  showAggregateEdges: true,
-  onlyReachable: false,
-  showPermissions: false,
-  starMode: false,
-  focusMode: false,
-  reduceEdgeCrossings: false,
-  includePods: false,
-  includeWorkloads: false,
-}
-
-type TRbacGraphProps = { clusterId: string }
-type TNonResourceUrlItem = { url: string; verbs: string[]; roles: string[] }
-type TNonResourceUrlList = {
-  items: TNonResourceUrlItem[]
-}
-const hasWildcard = (value: string) => value.includes('*')
-const toSortedOptions = (values: Set<string>) =>
-  Array.from(values)
-    .sort((a, b) => a.localeCompare(b))
-    .map(value => ({ value, label: value }))
-
-const EMPTY_SELECTOR_SELECTION = {
-  apiGroups: [] as string[],
-  apiVersions: [] as string[],
-  resources: [] as string[],
-  verbs: [] as string[],
-  nonResourceURLs: [] as string[],
-}
-
-type TFlowModel = { nodes: Node[]; edges: Edge[] }
-type TRawRuleRef = TRbacRuleRef & {
-  apiGroup?: string
-  resource?: string
-  subresource?: string
-  verb?: string
-  nonResourceURL?: string
-  sourceObjectUID?: string
-  sourceRuleIndex?: number
-  phantom?: boolean
-  expandedRefs?: TRawRuleRef[]
-}
-type TParsedPermission = {
-  id: string
-  label: string
-  verb: string
-  target: string
-  ruleKeys: string[]
-  apiGroups: string[]
-}
-
-type TRoleRuleDetail = {
-  key: string
-  ruleRef: TRbacRuleRef
-  expandedPermissionCount: number
-}
-
-type TRoleDetails = {
-  node: TRbacNode
-  rules: TRoleRuleDetail[]
-  permissions: TParsedPermission[]
-}
-
-const ROLE_NODE_TYPES = new Set<TRbacNode['type']>(['role', 'clusterRole'])
-const sortValues = (values?: string[]) => Array.from(new Set(values ?? [])).sort((a, b) => a.localeCompare(b))
-const toRawRuleRef = (ruleRef: TRbacRuleRef): TRawRuleRef => ruleRef as TRawRuleRef
-const normalizeResourceValue = (ruleRef: TRawRuleRef) =>
-  ruleRef.resource ? `${ruleRef.resource}${ruleRef.subresource ? `/${ruleRef.subresource}` : ''}` : undefined
-const mergeValues = (...collections: Array<(string | undefined)[] | undefined>) =>
-  sortValues(
-    collections
-      .flatMap(collection => collection ?? [])
-      .map(value => value?.trim())
-      .filter((value): value is string => value !== undefined && value.length > 0),
-  )
-const normalizeRuleRef = (ruleRef: TRawRuleRef): TRbacRuleRef => ({
-  apiGroups: mergeValues(ruleRef.apiGroups, ruleRef.apiGroup !== undefined ? [ruleRef.apiGroup] : undefined),
-  resources: mergeValues(
-    ruleRef.resources,
-    normalizeResourceValue(ruleRef) ? [normalizeResourceValue(ruleRef)] : undefined,
-  ),
-  verbs: mergeValues(ruleRef.verbs, ruleRef.verb !== undefined ? [ruleRef.verb] : undefined),
-  resourceNames: sortValues(ruleRef.resourceNames),
-  nonResourceURLs: mergeValues(
-    ruleRef.nonResourceURLs,
-    ruleRef.nonResourceURL !== undefined ? [ruleRef.nonResourceURL] : undefined,
-  ),
-})
-const mergeRuleRefs = (left: TRbacRuleRef, right: TRbacRuleRef): TRbacRuleRef => ({
-  apiGroups: mergeValues(left.apiGroups, right.apiGroups),
-  resources: mergeValues(left.resources, right.resources),
-  verbs: mergeValues(left.verbs, right.verbs),
-  resourceNames: mergeValues(left.resourceNames, right.resourceNames),
-  nonResourceURLs: mergeValues(left.nonResourceURLs, right.nonResourceURLs),
-})
-const serializeRuleRef = (ruleRef: TRbacRuleRef) => JSON.stringify(normalizeRuleRef(ruleRef))
-const formatJoinedValues = (values?: string[], empty = '*') => {
-  const normalized = sortValues(values)
-  return normalized.length > 0 ? normalized.join(', ') : empty
-}
-const formatRuleTarget = (ruleRef: TRbacRuleRef) => {
-  const resources = formatJoinedValues(ruleRef.resources)
-  const nonResourceURLs = formatJoinedValues(ruleRef.nonResourceURLs)
-  return sortValues(ruleRef.nonResourceURLs).length > 0 ? nonResourceURLs : resources
-}
-const formatRuleVerb = (ruleRef: TRbacRuleRef) => formatJoinedValues(ruleRef.verbs)
-const formatApiGroups = (ruleRef: TRbacRuleRef) => {
-  const apiGroups = sortValues(ruleRef.apiGroups).map(value => value || '<core>')
-  return apiGroups.length > 0 ? apiGroups.join(', ') : '<all>'
-}
-const hasWildcardValue = (values?: string[]) => (values ?? []).some(value => value.includes('*'))
-const hasConcreteResourceValues = (values?: string[]) =>
-  sortValues(values).some(value => value.trim().length > 0 && !value.includes('*') && !value.includes('/'))
-const parsePermissionLabel = (label: string) => {
-  const match = label.match(/^([A-Z*]+)\s+(.+)$/)
-
-  if (!match) {
-    return { verb: '*', target: label }
-  }
-
-  return { verb: match[1], target: match[2] }
-}
-const getNormalizedApiGroups = (ruleRefs?: TRbacRuleRef[]) =>
-  Array.from(
-    new Set(
-      (ruleRefs ?? [])
-        .flatMap(ruleRef => ruleRef.apiGroups ?? [])
-        .map(group => group.trim())
-        .filter(group => group.length > 0 && group !== '*'),
-    ),
-  )
-const getSourceRuleKey = (ruleRef: TRawRuleRef) =>
-  ruleRef.sourceObjectUID || ruleRef.sourceRuleIndex !== undefined
-    ? `${ruleRef.sourceObjectUID ?? 'unknown'}:${ruleRef.sourceRuleIndex ?? 0}`
-    : serializeRuleRef(ruleRef)
-const getPermissionRefs = (ruleRef: TRawRuleRef): TRawRuleRef[] => {
-  if ((ruleRef.expandedRefs?.length ?? 0) > 0) {
-    return ruleRef.expandedRefs!.map(expandedRef => ({
-      ...expandedRef,
-      sourceObjectUID: ruleRef.sourceObjectUID,
-      sourceRuleIndex: ruleRef.sourceRuleIndex,
-    }))
-  }
-
-  if (
-    ruleRef.resource !== undefined ||
-    ruleRef.nonResourceURL !== undefined ||
-    ruleRef.verb !== undefined ||
-    ruleRef.apiGroup !== undefined
-  ) {
-    return [ruleRef]
-  }
-
-  return []
-}
-const serializePermissionRef = (ruleRef: TRawRuleRef) =>
-  JSON.stringify({
-    apiGroup: ruleRef.apiGroup ?? '',
-    resource: normalizeResourceValue(ruleRef) ?? '',
-    nonResourceURL: ruleRef.nonResourceURL ?? '',
-    verb: ruleRef.verb ?? '',
-    phantom: Boolean(ruleRef.phantom),
-  })
-const buildParsedPermission = (ruleRef: TRawRuleRef, ruleKeys: string[]): TParsedPermission => {
-  const target = ruleRef.nonResourceURL ?? normalizeResourceValue(ruleRef) ?? '*'
-  const verb = (ruleRef.verb ?? '*').toUpperCase()
-
-  return {
-    id: `${serializePermissionRef(ruleRef)}:${ruleKeys.join('|') || 'all'}`,
-    label: `${verb} ${target}`,
-    verb,
-    target,
-    ruleKeys,
-    apiGroups: ruleRef.apiGroup && ruleRef.apiGroup !== '*' ? [ruleRef.apiGroup] : [],
-  }
-}
-
-const decorateFlowModelWithResourceLabels = (model: TFlowModel, kindsWithVersion: TKindWithVersion[]): TFlowModel => ({
-  nodes: model.nodes.map(node => {
-    if (node.type !== 'rbacCard') return node
-
-    const data = node.data as {
-      label: string
-      nodeType?: TRbacNode['type']
-      typeLabel: string
-    }
-
-    if (data.nodeType === 'permission') {
-      const { verb, target } = parsePermissionLabel(data.label)
-      const titleValue = resolveResourceDisplayValue({ kindsWithVersion, value: target })
-
-      return {
-        ...node,
-        data: {
-          ...data,
-          titlePrefix: verb,
-          titleValue,
-          titleShowsBadge: shouldShowResolvedResourceBadge(target),
-        },
-      }
-    }
-
-    return {
-      ...node,
-      data: {
-        ...data,
-        titlePrefix: undefined,
-        titleValue: data.label,
-        badgeValue: data.typeLabel,
-        titleShowsBadge: true,
-      },
-    }
-  }),
-  edges: model.edges,
-})
-const collectRoleDetails = (graph: TGraph | null, nodeId: string | null): TRoleDetails | null => {
-  if (!graph || !nodeId) return null
-
-  const node = graph.nodes.find(item => item.id === nodeId)
-  if (!node || !ROLE_NODE_TYPES.has(node.type)) return null
-
-  const nodeById = new Map(graph.nodes.map(item => [item.id, item]))
-  const ruleMap = new Map<string, TRoleRuleDetail>()
-  const permissionMap = new Map<string, TParsedPermission>()
-
-  ;(node.matchedRuleRefs ?? []).map(toRawRuleRef).forEach(rawRuleRef => {
-    const key = getSourceRuleKey(rawRuleRef)
-    const normalizedRuleRef = normalizeRuleRef(rawRuleRef)
-    const currentRule = ruleMap.get(key)
-
-    ruleMap.set(key, {
-      key,
-      ruleRef: currentRule ? mergeRuleRefs(currentRule.ruleRef, normalizedRuleRef) : normalizedRuleRef,
-      expandedPermissionCount: currentRule?.expandedPermissionCount ?? 0,
-    })
-
-    getPermissionRefs(rawRuleRef).forEach(permissionRef => {
-      const permission = buildParsedPermission(permissionRef, [key])
-      if (!permissionMap.has(permission.id)) {
-        permissionMap.set(permission.id, permission)
-      }
-    })
-  })
-
-  graph.edges.forEach(edge => {
-    if (edge.type !== 'permissions-role' || edge.from !== node.id) return
-
-    const permissionNode = nodeById.get(edge.to)
-    if (!permissionNode) return
-
-    const rawRuleRefs = (edge.ruleRefs ?? []).map(toRawRuleRef)
-    const normalizedRuleRefs = rawRuleRefs.map(normalizeRuleRef)
-    const ruleKeys = rawRuleRefs.map(getSourceRuleKey)
-    const { verb, target } = parsePermissionLabel(permissionNode.name)
-
-    normalizedRuleRefs.forEach((ruleRef, index) => {
-      const key = ruleKeys[index]
-      const currentRule = ruleMap.get(key)
-      ruleMap.set(key, {
-        key,
-        ruleRef: currentRule ? mergeRuleRefs(currentRule.ruleRef, ruleRef) : ruleRef,
-        expandedPermissionCount: currentRule?.expandedPermissionCount ?? 0,
-      })
-    })
-
-    const permissionKey = `${permissionNode.id}:${ruleKeys.join('|') || 'all'}`
-    if (!permissionMap.has(permissionKey)) {
-      permissionMap.set(permissionKey, {
-        id: permissionKey,
-        label: permissionNode.name,
-        verb,
-        target,
-        ruleKeys,
-        apiGroups: getNormalizedApiGroups(normalizedRuleRefs),
-      })
-    }
-  })
-
-  permissionMap.forEach(permission => {
-    const targets = permission.ruleKeys.length > 0 ? permission.ruleKeys : Array.from(ruleMap.keys())
-    targets.forEach(ruleKey => {
-      const rule = ruleMap.get(ruleKey)
-      if (rule) {
-        rule.expandedPermissionCount += 1
-      }
-    })
-  })
-
-  return {
-    node,
-    rules: Array.from(ruleMap.values()).sort((left, right) =>
-      formatRuleVerb(left.ruleRef)
-        .concat(formatRuleTarget(left.ruleRef))
-        .localeCompare(formatRuleVerb(right.ruleRef).concat(formatRuleTarget(right.ruleRef))),
-    ),
-    permissions: Array.from(permissionMap.values()).sort(
-      (left, right) => left.target.localeCompare(right.target) || left.verb.localeCompare(right.verb),
-    ),
-  }
-}
+export const nodeTypes: NodeTypes = { rbacCard: RbacNodeCard, namespaceGroup: NamespaceGroupNode }
+export const edgeTypes: EdgeTypes = { rbacEdge: RbacEdge }
 
 const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
   const { token } = theme.useToken()
@@ -394,6 +83,7 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
+
   const roleDetails = useMemo(() => collectRoleDetails(graphData, detailsNodeId), [detailsNodeId, graphData])
   const selectedRuleKeySet = useMemo(() => new Set(selectedRuleKeys), [selectedRuleKeys])
   const filteredPermissions = useMemo(() => {
@@ -421,7 +111,9 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
         permissions: permissions.sort((left, right) => left.verb.localeCompare(right.verb)),
       }))
   }, [filteredPermissions])
+
   const queryMutation = useRbacGraphQuery()
+
   const {
     data: kindsData,
     isLoading: kindsLoading,
@@ -430,6 +122,7 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
     cluster: clusterId,
     isEnabled: Boolean(clusterId),
   })
+
   const {
     data: nonResourceUrlsData,
     isLoading: nonResourceUrlsLoading,
@@ -441,7 +134,9 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
     plural: 'nonresourceurls',
     isEnabled: Boolean(clusterId),
   })
+
   const kindsWithVersion = useMemo(() => kindsData?.kindsWithVersion ?? [], [kindsData?.kindsWithVersion])
+
   const renderResolvedResourceLabel = useCallback(
     (
       value: string,

@@ -1,6 +1,12 @@
 import styled from 'styled-components'
 
-const Card = styled.div<{ $borderColor: string; $dimmed: boolean; $isRoot: boolean }>`
+type TCardProps = {
+  $borderColor: string
+  $dimmed: boolean
+  $isRoot: boolean
+}
+
+const Card = styled.div<TCardProps>`
   position: relative;
   min-width: 180px;
   max-width: 260px;
@@ -25,7 +31,11 @@ const BadgeRow = styled.div`
   margin-bottom: 2px;
 `
 
-const TypeBadge = styled.span<{ $color: string }>`
+type TBadgeProps = {
+  $color: string
+}
+
+const TypeBadge = styled.span<TBadgeProps>`
   display: inline-block;
   font-size: 10px;
   font-weight: 600;
@@ -35,7 +45,11 @@ const TypeBadge = styled.span<{ $color: string }>`
   min-width: 0;
 `
 
-const RuleCountBadge = styled.span<{ $color: string }>`
+type TRuleCountBadgeProps = {
+  $color: string
+}
+
+const RuleCountBadge = styled.span<TRuleCountBadgeProps>`
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
@@ -72,4 +86,12 @@ const Subtitle = styled.div`
   white-space: nowrap;
 `
 
-export const Styled = { Card, BadgeRow, TypeBadge, RuleCountBadge, Title, TitlePrefix, Subtitle }
+export const Styled = {
+  Card,
+  BadgeRow,
+  TypeBadge,
+  RuleCountBadge,
+  Title,
+  TitlePrefix,
+  Subtitle,
+}

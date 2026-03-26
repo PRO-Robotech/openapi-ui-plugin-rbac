@@ -26,4 +26,9 @@ const SelectLabel = styled.span`
   white-space: nowrap;
 `
 
-export const Styled = { Container, ToggleItem, SelectItem, SelectLabel }
+export const Styled = {
+  Container,
+  ToggleItem,
+  SelectItem,
+  SelectLabel,
+}

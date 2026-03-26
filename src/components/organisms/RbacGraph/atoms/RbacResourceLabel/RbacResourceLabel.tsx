@@ -1,7 +1,7 @@
 import React, { FC } from 'react'
 import { getUppercase, hslFromString } from '@prorobotech/openapi-k8s-toolkit'
 import { useThemeMode } from 'hooks/useThemeMode'
-import { Styled } from '../styled'
+import { Styled } from '../../styled'
 
 type TRbacResourceLabelProps = {
   badgeId: string

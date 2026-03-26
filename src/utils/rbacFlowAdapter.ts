@@ -31,6 +31,7 @@ const NODE_TYPE_LABELS: Record<TRbacNodeType, string> = {
 }
 
 const isStructuralEdge = (type: TRbacEdgeType) => type === 'grants' || type === 'subjects'
+
 const HORIZONTAL_ROUTE_RATIO = 1.15
 
 type TRbacFlowEdgeData = {
