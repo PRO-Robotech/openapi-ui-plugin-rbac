@@ -82,11 +82,6 @@ export const RbacGraphToggles: FC<TRbacGraphTogglesProps> = ({ value, onChange }
         <Switch size="small" checked={value.onlyReachable} onChange={toggle('onlyReachable')} />
         Only reachable
       </Styled.ToggleItem>
-
-      <Styled.ToggleItem>
-        <Switch size="small" checked={value.focusMode} onChange={toggle('focusMode')} />
-        Focus mode
-      </Styled.ToggleItem>
     </Styled.Container>
   )
 }

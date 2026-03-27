@@ -102,7 +102,6 @@ export type TRbacGraphOptions = {
   onlyReachable: boolean
   showPermissions: boolean
   starMode: boolean
-  focusMode: boolean
   reduceEdgeCrossings: boolean
   includePods: boolean
   includeWorkloads: boolean

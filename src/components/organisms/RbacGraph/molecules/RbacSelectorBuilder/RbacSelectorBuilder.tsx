@@ -11,14 +11,12 @@ type TRbacSelectorBuilderProps = {
   kindsLoading: boolean
   selected: {
     apiGroups: string[]
-    apiVersions: string[]
     resources: string[]
     verbs: string[]
     nonResourceURLs: string[]
   }
   onSelectionChange: (sel: {
     apiGroups: string[]
-    apiVersions: string[]
     resources: string[]
     verbs: string[]
     nonResourceURLs: string[]
@@ -41,22 +39,19 @@ export const RbacSelectorBuilder: FC<TRbacSelectorBuilderProps> = ({
           .map(kind => kind.version.version),
       ),
     ).sort((a, b) => a.localeCompare(b))
-    const allowedVersions = selected.apiVersions.length > 0 ? new Set(selected.apiVersions) : null
     const resourceValues = Array.from(
       new Set(
         kindsWithVersion
           .filter(kind => !allowedGroups || allowedGroups.has(kind.group))
-          .filter(kind => !allowedVersions || allowedVersions.has(kind.version.version))
           .map(kind => kind.version.resource),
       ),
     ).sort((a, b) => a.localeCompare(b))
 
     return {
       groups: groupValues.map(value => ({ value: normalizeGroupValue(value), label: value || '(core)' })),
-      versions: versionValues.map(value => ({ value, label: value })),
       resources: resourceValues.map(value => ({ value, label: value })),
     }
-  }, [kindsWithVersion, selected.apiGroups, selected.apiVersions])
+  }, [kindsWithVersion, selected.apiGroups])
 
   return (
     <Styled.Container>
@@ -88,17 +83,6 @@ export const RbacSelectorBuilder: FC<TRbacSelectorBuilderProps> = ({
                             apiGroups: values.map(denormalizeGroupValue),
                           })
                         }
-                      />
-                    </Styled.SelectorColumn>
-                    <Styled.SelectorColumn>
-                      <Styled.GroupTitle>Versions</Styled.GroupTitle>
-                      <Select
-                        mode="multiple"
-                        allowClear
-                        placeholder="Select versions"
-                        options={kindOptions.versions}
-                        value={selected.apiVersions}
-                        onChange={values => onSelectionChange({ ...selected, apiVersions: values })}
                       />
                     </Styled.SelectorColumn>
                     <Styled.SelectorColumn>
