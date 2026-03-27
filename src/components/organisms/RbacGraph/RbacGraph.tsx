@@ -17,6 +17,7 @@ import {
 import '@xyflow/react/dist/style.css'
 import { useKinds, useK8sSmartResource } from '@prorobotech/openapi-k8s-toolkit'
 import { Alert, Button, Card, Checkbox, Collapse, Empty, Modal, Spin, Tag, Typography, theme } from 'antd'
+import axios from 'axios'
 import { FOOTER_HEIGHT } from 'constants/blocksSizes'
 import type {
   TRbacQueryPayload,
@@ -62,6 +63,22 @@ import { Styled } from './styled'
 export const nodeTypes: NodeTypes = { rbacCard: RbacNodeCard, namespaceGroup: NamespaceGroupNode }
 export const edgeTypes: EdgeTypes = { rbacEdge: RbacEdge }
 
+const getQueryErrorMessage = (error: unknown) => {
+  if (axios.isAxiosError(error)) {
+    const responseMessage = error.response?.data?.message
+
+    if (typeof responseMessage === 'string' && responseMessage.trim().length > 0) {
+      return responseMessage
+    }
+  }
+
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message
+  }
+
+  return 'Query execution failed.'
+}
+
 const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
   const { token } = theme.useToken()
   const { fitView } = useReactFlow()
@@ -80,6 +97,7 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
   const [baseModel, setBaseModel] = useState<TFlowModel | null>(null)
   const [detailsNodeId, setDetailsNodeId] = useState<string | null>(null)
   const [selectedRuleKeys, setSelectedRuleKeys] = useState<string[]>([])
+  const [queryErrorMessage, setQueryErrorMessage] = useState<string | null>(null)
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
@@ -166,7 +184,9 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
 
   const [selectorSelection, setSelectorSelection] = useState(EMPTY_SELECTOR_SELECTION)
   const hasResourceFilters = Boolean(
-    selectorSelection.apiGroups.length || selectorSelection.apiVersions.length || selectorSelection.resources.length,
+    selectorSelection.apiGroups.length ||
+      selectorSelection.resources.length ||
+      selectorSelection.resourceNames.length,
   )
   const hasNonResourceFilters = Boolean(selectorSelection.nonResourceURLs.length)
   const {
@@ -177,7 +197,6 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
     reduceEdgeCrossings,
     showAggregateEdges,
     showPermissions,
-    focusMode,
   } = options
   const viewMode = starMode ? 'star' : reduceEdgeCrossings ? 'default-reduced' : 'default'
   const previousViewModeRef = useRef(viewMode)
@@ -203,13 +222,11 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
       kind: (typeof kindsWithVersion)[number],
       selection: {
         apiGroups: string[]
-        apiVersions: string[]
         resources: string[]
         verbs: string[]
       },
     ) =>
       (selection.apiGroups.length === 0 || selection.apiGroups.includes(kind.group)) &&
-      (selection.apiVersions.length === 0 || selection.apiVersions.includes(kind.version.version)) &&
       (selection.resources.length === 0 || selection.resources.includes(kind.version.resource)) &&
       (selection.verbs.length === 0 || selection.verbs.some(verb => kind.version.verbs?.includes(verb)))
 
@@ -226,16 +243,14 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
     const collectResourceOptions = (
       selection: {
         apiGroups: string[]
-        apiVersions: string[]
         resources: string[]
         verbs: string[]
       },
-      ignoredKey?: 'apiGroups' | 'apiVersions' | 'resources' | 'verbs',
+      ignoredKey?: 'apiGroups' | 'resources' | 'verbs',
     ) => {
       const filteredKinds = kindsWithVersion.filter(kind =>
         matchesResourceSelection(kind, {
           apiGroups: ignoredKey === 'apiGroups' ? [] : selection.apiGroups,
-          apiVersions: ignoredKey === 'apiVersions' ? [] : selection.apiVersions,
           resources: ignoredKey === 'resources' ? [] : selection.resources,
           verbs: ignoredKey === 'verbs' ? [] : selection.verbs,
         }),
@@ -243,7 +258,6 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
 
       return {
         apiGroups: new Set(filteredKinds.map(kind => kind.group)),
-        apiVersions: new Set(filteredKinds.map(kind => kind.version.version)),
         resources: new Set(filteredKinds.map(kind => kind.version.resource)),
         verbs: new Set(filteredKinds.flatMap(kind => kind.version.verbs ?? [])),
       }
@@ -277,7 +291,6 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
 
   const selectorConstraints = useMemo(() => {
     const resourceOptionsForGroups = selectorRelations.collectResourceOptions(selectorSelection, 'apiGroups')
-    const resourceOptionsForVersions = selectorRelations.collectResourceOptions(selectorSelection, 'apiVersions')
     const resourceOptionsForResources = selectorRelations.collectResourceOptions(selectorSelection, 'resources')
     const resourceOptionsForVerbs = selectorRelations.collectResourceOptions(selectorSelection, 'verbs')
     const nonResourceOptionsForUrls = selectorRelations.collectNonResourceOptions(selectorSelection, 'nonResourceURLs')
@@ -294,7 +307,6 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
 
     return {
       allowedGroups: resourceOptionsForGroups.apiGroups,
-      allowedVersions: resourceOptionsForVersions.apiVersions,
       allowedResources: resourceOptionsForResources.resources,
       allowedVerbs,
       allowedNonResourceURLs: nonResourceOptionsForUrls.nonResourceURLs,
@@ -306,7 +318,6 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
       apiGroups: Array.from(selectorConstraints.allowedGroups)
         .sort((a, b) => a.localeCompare(b))
         .map(value => ({ value, label: value || '(core)' })),
-      apiVersions: toSortedOptions(selectorConstraints.allowedVersions),
       resources: toSortedOptions(selectorConstraints.allowedResources),
       verbs: toSortedOptions(selectorConstraints.allowedVerbs),
       nonResourceURLs: toSortedOptions(selectorConstraints.allowedNonResourceURLs),
@@ -316,33 +327,53 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
       selectorConstraints.allowedNonResourceURLs,
       selectorConstraints.allowedResources,
       selectorConstraints.allowedVerbs,
-      selectorConstraints.allowedVersions,
     ],
   )
 
   const handleSelectorChange = useCallback(
-    (sel: typeof selectorSelection) => {
-      const nextApiGroups = sel.apiGroups.filter(group =>
-        selectorRelations.collectResourceOptions(sel, 'apiGroups').apiGroups.has(group),
+    (sel: typeof selectorSelection, changedKey?: keyof typeof EMPTY_SELECTOR_SELECTION) => {
+      const isResourceSelector =
+        changedKey === 'apiGroups' || changedKey === 'resources' || changedKey === 'resourceNames'
+      const activatedResourceSelection =
+        changedKey !== undefined && isResourceSelector && Array.isArray(sel[changedKey]) && sel[changedKey].length > 0
+      const activatedNonResourceSelection = changedKey === 'nonResourceURLs' && sel.nonResourceURLs.length > 0
+
+      const selectionWithExclusiveMode = {
+        ...sel,
+        ...(activatedResourceSelection ? { nonResourceURLs: [] } : {}),
+        ...(activatedNonResourceSelection ? { apiGroups: [], resources: [], resourceNames: [] } : {}),
+      }
+
+      const nextApiGroups = selectionWithExclusiveMode.apiGroups.filter(group =>
+        selectorRelations.collectResourceOptions(selectionWithExclusiveMode, 'apiGroups').apiGroups.has(group),
       )
-      const nextApiVersions = sel.apiVersions.filter(version =>
+      const nextResources = selectionWithExclusiveMode.resources.filter(resource =>
         selectorRelations
-          .collectResourceOptions({ ...sel, apiGroups: nextApiGroups }, 'apiVersions')
-          .apiVersions.has(version),
-      )
-      const nextResources = sel.resources.filter(resource =>
-        selectorRelations
-          .collectResourceOptions({ ...sel, apiGroups: nextApiGroups, apiVersions: nextApiVersions }, 'resources')
+          .collectResourceOptions(
+            {
+              ...selectionWithExclusiveMode,
+              apiGroups: nextApiGroups,
+            },
+            'resources',
+          )
           .resources.has(resource),
       )
-      const nextHasResourceFilters = Boolean(nextApiGroups.length || nextApiVersions.length || nextResources.length)
-      const nextHasNonResourceFilters = Boolean(sel.nonResourceURLs.length)
+      const nextResourceNames = selectionWithExclusiveMode.resourceNames
+      const nextHasResourceFilters = Boolean(nextApiGroups.length || nextResources.length || nextResourceNames.length)
+      const nextHasNonResourceFilters = Boolean(selectionWithExclusiveMode.nonResourceURLs.length)
       const allowedVerbs = new Set<string>()
       const resourceVerbs = selectorRelations.collectResourceOptions(
-        { ...sel, apiGroups: nextApiGroups, apiVersions: nextApiVersions, resources: nextResources },
+        {
+          ...selectionWithExclusiveMode,
+          apiGroups: nextApiGroups,
+          resources: nextResources,
+        },
         'verbs',
       ).verbs
-      const nonResourceVerbs = selectorRelations.collectNonResourceOptions({ ...sel }, 'verbs').verbs
+      const nonResourceVerbs = selectorRelations.collectNonResourceOptions(
+        { ...selectionWithExclusiveMode },
+        'verbs',
+      ).verbs
 
       if (nextHasResourceFilters || !nextHasNonResourceFilters) {
         resourceVerbs.forEach(verb => allowedVerbs.add(verb))
@@ -352,12 +383,12 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
         nonResourceVerbs.forEach(verb => allowedVerbs.add(verb))
       }
 
-      const nextVerbs = sel.verbs.filter(verb => allowedVerbs.has(verb))
-      const nextNonResourceURLs = sel.nonResourceURLs.filter(nonResourceURL =>
+      const nextVerbs = selectionWithExclusiveMode.verbs.filter(verb => allowedVerbs.has(verb))
+      const nextNonResourceURLs = selectionWithExclusiveMode.nonResourceURLs.filter(nonResourceURL =>
         selectorRelations
           .collectNonResourceOptions(
             {
-              nonResourceURLs: sel.nonResourceURLs,
+              nonResourceURLs: selectionWithExclusiveMode.nonResourceURLs,
               verbs: nextVerbs,
             },
             'nonResourceURLs',
@@ -367,8 +398,8 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
       const nextSelection = {
         ...sel,
         apiGroups: nextApiGroups,
-        apiVersions: nextApiVersions,
         resources: nextResources,
+        resourceNames: nextResourceNames,
         verbs: nextVerbs,
         nonResourceURLs: nextNonResourceURLs,
       }
@@ -382,6 +413,7 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
             verbs: nextSelection.verbs,
             apiGroups: nextSelection.apiGroups,
             resources: nextSelection.resources,
+            resourceNames: nextSelection.resourceNames,
             nonResourceURLs: nextSelection.nonResourceURLs,
           },
         },
@@ -396,9 +428,9 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
     const normalizedSelection = {
       ...selectorSelection,
       apiGroups: selectorSelection.apiGroups.filter(group => selectorConstraints.allowedGroups.has(group)),
-      apiVersions: selectorSelection.apiVersions.filter(version => selectorConstraints.allowedVersions.has(version)),
       resources: selectorSelection.resources.filter(resource => selectorConstraints.allowedResources.has(resource)),
       verbs: selectorSelection.verbs.filter(verb => selectorConstraints.allowedVerbs.has(verb)),
+      resourceNames: selectorSelection.resourceNames,
       nonResourceURLs: selectorSelection.nonResourceURLs.filter(nonResourceURL =>
         selectorConstraints.allowedNonResourceURLs.has(nonResourceURL),
       ),
@@ -406,9 +438,9 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
 
     const selectionChanged =
       normalizedSelection.apiGroups.length !== selectorSelection.apiGroups.length ||
-      normalizedSelection.apiVersions.length !== selectorSelection.apiVersions.length ||
       normalizedSelection.resources.length !== selectorSelection.resources.length ||
       normalizedSelection.verbs.length !== selectorSelection.verbs.length ||
+      normalizedSelection.resourceNames.length !== selectorSelection.resourceNames.length ||
       normalizedSelection.nonResourceURLs.length !== selectorSelection.nonResourceURLs.length
 
     if (selectionChanged) {
@@ -421,7 +453,6 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
     selectorConstraints.allowedNonResourceURLs,
     selectorConstraints.allowedResources,
     selectorConstraints.allowedVerbs,
-    selectorConstraints.allowedVersions,
     nonResourceUrlsData?.items,
     selectorSelection,
   ])
@@ -435,22 +466,7 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
     setSelectedRuleKeys(roleDetails.rules.map(rule => rule.key))
   }, [roleDetails])
 
-  const handleSubmit = useCallback(() => {
-    queryMutation.mutate(payload, {
-      onSuccess: (data: TRbacQueryResponse) => {
-        setGraphData(data.graph)
-        setStats(data.stats)
-        setFocusNodeId(null)
-        setStarSelectedNodeId(null)
-        setDetailsNodeId(null)
-      },
-    })
-  }, [payload, queryMutation])
-
-  const handleReset = useCallback(() => {
-    setPayload(DEFAULT_PAYLOAD)
-    setOptions(DEFAULT_OPTIONS)
-    setSelectorSelection(EMPTY_SELECTOR_SELECTION)
+  const clearGraphView = useCallback(() => {
     setFocusNodeId(null)
     setStarSelectedNodeId(null)
     setBaseModel(null)
@@ -461,6 +477,32 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
     setNodes([])
     setEdges([])
   }, [setEdges, setNodes])
+
+  const handleSubmit = useCallback(() => {
+    setQueryErrorMessage(null)
+    queryMutation.mutate(payload, {
+      onSuccess: (data: TRbacQueryResponse) => {
+        setQueryErrorMessage(null)
+        setGraphData(data.graph)
+        setStats(data.stats)
+        setFocusNodeId(null)
+        setStarSelectedNodeId(null)
+        setDetailsNodeId(null)
+      },
+      onError: error => {
+        clearGraphView()
+        setQueryErrorMessage(getQueryErrorMessage(error))
+      },
+    })
+  }, [clearGraphView, payload, queryMutation])
+
+  const handleReset = useCallback(() => {
+    setPayload(DEFAULT_PAYLOAD)
+    setOptions(DEFAULT_OPTIONS)
+    setSelectorSelection(EMPTY_SELECTOR_SELECTION)
+    setQueryErrorMessage(null)
+    clearGraphView()
+  }, [clearGraphView])
 
   useEffect(() => {
     if (previousViewModeRef.current !== viewMode) {
@@ -485,7 +527,6 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
           includeWorkloads,
           onlyReachable,
           starMode,
-          focusMode,
           reduceEdgeCrossings,
           showAggregateEdges,
           showPermissions,
@@ -511,7 +552,6 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
     applyLayout()
   }, [
     graphData,
-    focusMode,
     includePods,
     includeWorkloads,
     onlyReachable,
@@ -539,10 +579,10 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
       return
     }
 
-    const focused = applyFocusToModel(baseModel.nodes, baseModel.edges, focusNodeId, focusMode)
+    const focused = applyFocusToModel(baseModel.nodes, baseModel.edges, focusNodeId)
     setNodes(focused.nodes)
     setEdges(focused.edges)
-  }, [baseModel, focusMode, focusNodeId, setEdges, setNodes, starMode, starSelectedNodeId])
+  }, [baseModel, focusNodeId, setEdges, setNodes, starMode, starSelectedNodeId])
 
   useEffect(() => {
     if (!shouldFitViewAfterLayoutRef.current || layouting || nodes.length === 0) return
@@ -567,24 +607,73 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
   const handleNodeClick = useCallback(
     (_: React.MouseEvent, node: { id: string; data?: { nodeType?: TRbacNode['type'] } }) => {
       if (node.id.startsWith('ns-group-')) return
+
       if (node.data?.nodeType && ROLE_NODE_TYPES.has(node.data.nodeType)) {
         setDetailsNodeId(node.id)
       }
+    },
+    [],
+  )
+
+  const handleNodeContextMenu = useCallback(
+    (event: React.MouseEvent, node: { id: string }) => {
+      event.preventDefault()
+
+      if (node.id.startsWith('ns-group-')) return
+
       if (starMode) {
         setStarSelectedNodeId(prev => (prev === node.id ? null : node.id))
         return
       }
-      if (focusMode) {
-        setFocusNodeId(prev => (prev === node.id ? null : node.id))
-      }
+
+      setFocusNodeId(prev => (prev === node.id ? null : node.id))
     },
-    [focusMode, starMode],
+    [starMode],
   )
-  const handlePaneClick = useCallback(() => {
+
+  const clearActiveNodeState = useCallback(() => {
     if (starMode) {
       setStarSelectedNodeId(null)
+      return
     }
+
+    setFocusNodeId(null)
   }, [starMode])
+
+  const handlePaneClick = useCallback(() => {
+    clearActiveNodeState()
+  }, [clearActiveNodeState])
+
+  const handleCanvasClickCapture = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      const target = event.target as HTMLElement | null
+
+      if (!target) return
+      if (!target.closest('.react-flow')) return
+      if (target.closest('.react-flow__node')) return
+      if (target.closest('.react-flow__controls')) return
+      if (target.closest('.react-flow__minimap')) return
+      if (target.closest('.react-flow__panel')) return
+      if (target.closest('.react-flow__attribution')) return
+      if (!target.closest('.react-flow__pane') && !target.closest('.react-flow__edge')) return
+
+      clearActiveNodeState()
+    },
+    [clearActiveNodeState],
+  )
+
+  const handlePaneContextMenu = useCallback(
+    (event: MouseEvent | React.MouseEvent<Element, MouseEvent>) => {
+      event.preventDefault()
+
+      if (event.target instanceof HTMLElement && event.target.closest('.react-flow__node')) {
+        return
+      }
+
+      clearActiveNodeState()
+    },
+    [clearActiveNodeState],
+  )
 
   const isLoading = queryMutation.isPending || layouting
   const nonResourceUrlsErrorMessage =
@@ -631,8 +720,9 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
             value={payload}
             selectorLoading={kindsLoading || nonResourceUrlsLoading}
             selectorOptions={selectorOptions}
-            selectedApiVersions={selectorSelection.apiVersions}
-            onSelectorChange={patch => handleSelectorChange({ ...selectorSelection, ...patch })}
+            onSelectorChange={(patch, changedKey) =>
+              handleSelectorChange({ ...selectorSelection, ...patch }, changedKey)
+            }
             onChange={setPayload}
             onSubmit={handleSubmit}
             onReset={handleReset}
@@ -654,6 +744,15 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
             type="error"
             message="Error while loading non-resource URLs"
             description={nonResourceUrlsErrorMessage}
+            style={{ marginTop: 8 }}
+          />
+        )}
+
+        {queryErrorMessage && (
+          <Alert
+            type="error"
+            message="Error while running query"
+            description={queryErrorMessage}
             style={{ marginTop: 8 }}
           />
         )}
@@ -693,6 +792,7 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
         </Styled.EmptyState>
       ) : (
         <Styled.CanvasWrapper
+          onClickCapture={handleCanvasClickCapture}
           $height={canvasHeight}
           $colorBgContainer={token.colorBgContainer}
           $colorBgElevated={token.colorBgElevated}
@@ -712,7 +812,9 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
             nodeTypes={nodeTypes}
             edgeTypes={edgeTypes}
             onNodeClick={handleNodeClick}
+            onNodeContextMenu={handleNodeContextMenu}
             onPaneClick={handlePaneClick}
+            onPaneContextMenu={handlePaneContextMenu}
             nodesDraggable={false}
             fitView
             fitViewOptions={{ padding: 0.16 }}

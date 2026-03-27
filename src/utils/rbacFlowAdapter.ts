@@ -32,12 +32,11 @@ const NODE_TYPE_LABELS: Record<TRbacNodeType, string> = {
 
 const isStructuralEdge = (type: TRbacEdgeType) => type === 'grants' || type === 'subjects'
 
-const HORIZONTAL_ROUTE_RATIO = 1.15
-
 type TRbacFlowEdgeData = {
   edgeType: TRbacEdgeType
   explain?: string
   route?: TRoutePoint[]
+  straight?: boolean
 }
 
 type TFilterState = {
@@ -155,57 +154,6 @@ export const filterGraphByOptions = (graph: TRbacGraph, options: TRbacGraphOptio
   }
 }
 
-const getForcedHandlesForEdge = (edgeType: TRbacEdgeType): { sourceHandle?: string; targetHandle?: string } | null => {
-  if (edgeType === 'ownedBy') {
-    return { sourceHandle: 'right', targetHandle: 'left' }
-  }
-
-  return null
-}
-
-const pickEdgeHandles = (
-  sourcePosition: { x: number; y: number },
-  targetPosition: { x: number; y: number },
-): { sourceHandle?: string; targetHandle?: string } => {
-  const deltaX = targetPosition.x - sourcePosition.x
-  const deltaY = targetPosition.y - sourcePosition.y
-
-  if (deltaX >= 0 && Math.abs(deltaX) >= Math.abs(deltaY) * HORIZONTAL_ROUTE_RATIO) {
-    return { sourceHandle: 'right', targetHandle: 'left' }
-  }
-
-  return { sourceHandle: 'bottom', targetHandle: 'top' }
-}
-
-const inferSourceHandle = (route?: TRoutePoint[]): string | undefined => {
-  if (!route || route.length < 2) return undefined
-
-  const [start, next] = route
-  const deltaX = next.x - start.x
-  const deltaY = next.y - start.y
-
-  if (Math.abs(deltaX) >= Math.abs(deltaY)) {
-    return deltaX >= 0 ? 'right' : 'left'
-  }
-
-  return deltaY >= 0 ? 'bottom' : 'top'
-}
-
-const inferTargetHandle = (route?: TRoutePoint[]): string | undefined => {
-  if (!route || route.length < 2) return undefined
-
-  const end = route[route.length - 1]
-  const previous = route[route.length - 2]
-  const deltaX = end.x - previous.x
-  const deltaY = end.y - previous.y
-
-  if (Math.abs(deltaX) >= Math.abs(deltaY)) {
-    return deltaX >= 0 ? 'left' : 'right'
-  }
-
-  return deltaY >= 0 ? 'top' : 'bottom'
-}
-
 const bfs = (startId: string, adjacency: Map<string, Set<string>>): Set<string> => {
   const visited = new Set<string>()
   const queue = [startId]
@@ -301,28 +249,21 @@ export const buildRbacFlowModel = (
       })
     })
   }
-
-  const flowNodePositions = new Map(flowNodes.map(node => [node.id, node.position]))
-
   const flowEdges: Edge[] = filteredEdges.map(edge => {
     const route = layout.edgeRoutes?.get(edge.id)
-    const forcedHandles = getForcedHandlesForEdge(edge.type)
-    const fallbackHandles = pickEdgeHandles(
-      flowNodePositions.get(edge.from) ?? { x: 0, y: 0 },
-      flowNodePositions.get(edge.to) ?? { x: 0, y: 0 },
-    )
 
     return {
       id: edge.id,
       source: edge.from,
       target: edge.to,
-      sourceHandle: forcedHandles?.sourceHandle ?? inferSourceHandle(route) ?? fallbackHandles.sourceHandle,
-      targetHandle: forcedHandles?.targetHandle ?? inferTargetHandle(route) ?? fallbackHandles.targetHandle,
+      sourceHandle: 'center',
+      targetHandle: 'center',
       type: 'rbacEdge',
       data: {
         edgeType: edge.type,
         explain: edge.explain,
         route,
+        straight: !options.reduceEdgeCrossings,
       } as TRbacFlowEdgeData,
       style: {
         stroke: EDGE_COLORS[edge.type] ?? '#475569',
@@ -344,9 +285,8 @@ export const applyFocusToModel = (
   baseNodes: Node[],
   baseEdges: Edge[],
   focusNodeId: string | null,
-  focusModeEnabled: boolean,
 ): { nodes: Node[]; edges: Edge[] } => {
-  if (!focusModeEnabled || !focusNodeId || !baseNodes.some(n => n.id === focusNodeId)) {
+  if (!focusNodeId || !baseNodes.some(n => n.id === focusNodeId)) {
     return {
       nodes: baseNodes.map(n => ({ ...n, data: { ...n.data, focusDim: false, focusRoot: false } })),
       edges: baseEdges.map(e => ({ ...e, style: { ...e.style, opacity: 1 }, animated: false })),
@@ -390,7 +330,7 @@ export const applyFocusToModel = (
       const baseWidth = (e.style?.strokeWidth as number) ?? 1.5
       return {
         ...e,
-        animated: active,
+        animated: false,
         style: {
           ...e.style,
           opacity: active ? 1 : 0.08,

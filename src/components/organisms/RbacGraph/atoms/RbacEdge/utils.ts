@@ -1,7 +1,5 @@
 import type { TRoutePoint } from 'utils/rbacForceLayout'
 
-const CORNER_RADIUS = 10
-
 export const appendPoint = (points: TRoutePoint[], point: TRoutePoint) => {
   const previous = points[points.length - 1]
   if (previous && previous.x === point.x && previous.y === point.y) return
@@ -30,36 +28,14 @@ export const getAnchoredRoute = (route: TRoutePoint[], source: TRoutePoint, targ
   })
 }
 
-export const getDistance = (start: TRoutePoint, end: TRoutePoint) => Math.hypot(end.x - start.x, end.y - start.y)
-
-export const getRoundedPath = (points: TRoutePoint[]) => {
+export const getPolylinePath = (points: TRoutePoint[]) => {
   if (points.length < 2) return ''
 
   let path = `M ${points[0].x},${points[0].y}`
 
   for (let i = 1; i < points.length; i += 1) {
     const current = points[i]
-    const previous = points[i - 1]
-    const next = points[i + 1]
-
-    if (!next) {
-      path += ` L ${current.x},${current.y}`
-    } else {
-      const incomingLength = getDistance(previous, current)
-      const outgoingLength = getDistance(current, next)
-
-      if (incomingLength === 0 || outgoingLength === 0) {
-        path += ` L ${current.x},${current.y}`
-      } else {
-        const radius = Math.min(CORNER_RADIUS, incomingLength / 2, outgoingLength / 2)
-        const entryX = current.x - ((current.x - previous.x) / incomingLength) * radius
-        const entryY = current.y - ((current.y - previous.y) / incomingLength) * radius
-        const exitX = current.x + ((next.x - current.x) / outgoingLength) * radius
-        const exitY = current.y + ((next.y - current.y) / outgoingLength) * radius
-
-        path += ` L ${entryX},${entryY} Q ${current.x},${current.y} ${exitX},${exitY}`
-      }
-    }
+    path += ` L ${current.x},${current.y}`
   }
 
   return path

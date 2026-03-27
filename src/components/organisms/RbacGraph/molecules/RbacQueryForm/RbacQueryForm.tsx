@@ -12,13 +12,7 @@ import { Button, Checkbox, Collapse, Input, InputNumber, Select, theme } from 'a
 import type { CollapseProps } from 'antd'
 import type { TRbacQueryPayload } from 'localTypes/rbacGraph'
 import { DEFAULT_SPEC } from './constants'
-import {
-  updateSpec,
-  updateSelector,
-  getPrimarySelectorCount,
-  getScopeIdentityCount,
-  getRuntimeLimitsCount,
-} from './utils'
+import { updateSpec, getPrimarySelectorCount, getScopeIdentityCount, getRuntimeLimitsCount } from './utils'
 import { Styled } from './styled'
 
 type TSectionLabelOptions = {
@@ -27,17 +21,26 @@ type TSectionLabelOptions = {
   borderRadiusLG: number
 }
 
+type TSectionLabelProps = {
+  icon: ReactNode
+  title: string
+  activeCount: number
+  panelKey: string
+  isExpanded: boolean
+  onToggle: (key: string) => void
+}
+
 const createSectionLabel = (
-  icon: ReactNode,
-  title: string,
-  activeCount: number,
+  { icon, title, activeCount, panelKey, isExpanded, onToggle }: TSectionLabelProps,
   { colorPrimary, colorFillSecondary, borderRadiusLG }: TSectionLabelOptions,
 ) => (
   <Styled.SectionLabel>
-    <Styled.SectionLabelMain>
-      <Styled.SectionIcon $color={colorPrimary}>{icon}</Styled.SectionIcon>
-      <span>{title}</span>
-    </Styled.SectionLabelMain>
+    <Styled.SectionLabelTrigger type="button" onClick={() => onToggle(panelKey)} aria-expanded={isExpanded}>
+      <Styled.SectionLabelMain>
+        <Styled.SectionIcon $color={colorPrimary}>{icon}</Styled.SectionIcon>
+        <span>{title}</span>
+      </Styled.SectionLabelMain>
+    </Styled.SectionLabelTrigger>
     <Styled.ActiveBadge
       $background={colorFillSecondary}
       $borderRadiusLG={borderRadiusLG}
@@ -56,24 +59,24 @@ type TSelectorOption = {
 
 type TSelectorPatch = Partial<{
   apiGroups: string[]
-  apiVersions: string[]
   resources: string[]
   verbs: string[]
+  resourceNames: string[]
   nonResourceURLs: string[]
 }>
+
+type TSelectorKey = keyof TSelectorPatch
 
 type TRbacQueryFormProps = {
   value: TRbacQueryPayload
   selectorLoading: boolean
   selectorOptions: {
     apiGroups: TSelectorOption[]
-    apiVersions: TSelectorOption[]
     resources: TSelectorOption[]
     verbs: TSelectorOption[]
     nonResourceURLs: TSelectorOption[]
   }
-  selectedApiVersions: string[]
-  onSelectorChange: (patch: TSelectorPatch) => void
+  onSelectorChange: (patch: TSelectorPatch, changedKey: TSelectorKey) => void
   onChange: (payload: TRbacQueryPayload) => void
   onSubmit: () => void
   onReset: () => void
@@ -84,7 +87,6 @@ export const RbacQueryForm: FC<TRbacQueryFormProps> = ({
   value,
   selectorLoading,
   selectorOptions,
-  selectedApiVersions,
   onSelectorChange,
   onChange,
   onSubmit,
@@ -94,11 +96,23 @@ export const RbacQueryForm: FC<TRbacQueryFormProps> = ({
   const { token } = theme.useToken()
   const { spec } = value
   const { selector } = spec
-  const [activeSectionKeys, setActiveSectionKeys] = useState<string[]>([
-    'primary-selectors',
-    'scope-identity',
-    'runtime-limits',
-  ])
+  const defaultActiveSectionKeys = ['primary-selectors', 'scope-identity', 'runtime-limits']
+  const [activeSectionKeys, setActiveSectionKeys] = useState<string[]>(defaultActiveSectionKeys)
+
+  const normalizeActiveKeys = useCallback((keys: string | string[]) => (Array.isArray(keys) ? keys : [keys]), [])
+
+  const toggleSection = useCallback((sectionKey: string) => {
+    setActiveSectionKeys(prev =>
+      prev.includes(sectionKey) ? prev.filter(key => key !== sectionKey) : [...prev, sectionKey],
+    )
+  }, [])
+
+  const handleCollapseChange = useCallback(
+    (keys: string | string[]) => {
+      setActiveSectionKeys(normalizeActiveKeys(keys))
+    },
+    [normalizeActiveKeys],
+  )
 
   const sectionLabelOptions = useMemo<TSectionLabelOptions>(
     () => ({
@@ -114,11 +128,17 @@ export const RbacQueryForm: FC<TRbacQueryFormProps> = ({
       {
         key: 'primary-selectors',
         label: createSectionLabel(
-          <FilterOutlined />,
-          'Primary selectors',
-          getPrimarySelectorCount(spec, selectedApiVersions),
+          {
+            icon: <FilterOutlined />,
+            title: 'Primary selectors',
+            activeCount: getPrimarySelectorCount(spec),
+            panelKey: 'primary-selectors',
+            isExpanded: activeSectionKeys.includes('primary-selectors'),
+            onToggle: toggleSection,
+          },
           sectionLabelOptions,
         ),
+        collapsible: 'icon',
         children: (
           <Styled.PrimarySectionGrid>
             <Styled.FormRow $span={6}>
@@ -130,7 +150,7 @@ export const RbacQueryForm: FC<TRbacQueryFormProps> = ({
                 tokenSeparators={[' ', ',']}
                 value={selector.apiGroups}
                 options={selectorOptions.apiGroups}
-                onChange={apiGroups => onSelectorChange({ apiGroups })}
+                onChange={apiGroups => onSelectorChange({ apiGroups }, 'apiGroups')}
                 placeholder="Select API groups"
               />
             </Styled.FormRow>
@@ -144,22 +164,8 @@ export const RbacQueryForm: FC<TRbacQueryFormProps> = ({
                 tokenSeparators={[' ', ',']}
                 value={selector.verbs}
                 options={selectorOptions.verbs}
-                onChange={verbs => onSelectorChange({ verbs })}
+                onChange={verbs => onSelectorChange({ verbs }, 'verbs')}
                 placeholder="e.g. get, list, watch"
-              />
-            </Styled.FormRow>
-
-            <Styled.FormRow $span={6}>
-              <Styled.Label $color={token.colorText}>Versions</Styled.Label>
-              <Select
-                allowClear
-                mode="multiple"
-                loading={selectorLoading}
-                tokenSeparators={[' ', ',']}
-                value={selectedApiVersions}
-                options={selectorOptions.apiVersions}
-                onChange={apiVersions => onSelectorChange({ apiVersions })}
-                placeholder="Select versions"
               />
             </Styled.FormRow>
 
@@ -172,7 +178,7 @@ export const RbacQueryForm: FC<TRbacQueryFormProps> = ({
                 tokenSeparators={[' ', ',']}
                 value={selector.resources}
                 options={selectorOptions.resources}
-                onChange={resources => onSelectorChange({ resources })}
+                onChange={resources => onSelectorChange({ resources }, 'resources')}
                 placeholder="Select resources"
               />
             </Styled.FormRow>
@@ -184,7 +190,7 @@ export const RbacQueryForm: FC<TRbacQueryFormProps> = ({
                 mode="tags"
                 tokenSeparators={[' ', ',']}
                 value={selector.resourceNames}
-                onChange={resourceNames => onChange(updateSelector(value, { resourceNames }))}
+                onChange={resourceNames => onSelectorChange({ resourceNames }, 'resourceNames')}
                 placeholder="Specific resource names"
               />
             </Styled.FormRow>
@@ -197,7 +203,7 @@ export const RbacQueryForm: FC<TRbacQueryFormProps> = ({
                 tokenSeparators={[' ', ',']}
                 options={selectorOptions.nonResourceURLs}
                 value={selector.nonResourceURLs}
-                onChange={nonResourceURLs => onSelectorChange({ nonResourceURLs })}
+                onChange={nonResourceURLs => onSelectorChange({ nonResourceURLs }, 'nonResourceURLs')}
                 placeholder="e.g. /healthz, /metrics"
               />
             </Styled.FormRow>
@@ -207,11 +213,17 @@ export const RbacQueryForm: FC<TRbacQueryFormProps> = ({
       {
         key: 'scope-identity',
         label: createSectionLabel(
-          <SafetyCertificateOutlined />,
-          'Scope & identity',
-          getScopeIdentityCount(spec),
+          {
+            icon: <SafetyCertificateOutlined />,
+            title: 'Scope & identity',
+            activeCount: getScopeIdentityCount(spec),
+            panelKey: 'scope-identity',
+            isExpanded: activeSectionKeys.includes('scope-identity'),
+            onToggle: toggleSection,
+          },
           sectionLabelOptions,
         ),
+        collapsible: 'icon',
         children: (
           <Styled.SectionGrid>
             <Styled.FormRow>
@@ -286,11 +298,17 @@ export const RbacQueryForm: FC<TRbacQueryFormProps> = ({
       {
         key: 'runtime-limits',
         label: createSectionLabel(
-          <ControlOutlined />,
-          'Runtime limits',
-          getRuntimeLimitsCount(spec),
+          {
+            icon: <ControlOutlined />,
+            title: 'Runtime limits',
+            activeCount: getRuntimeLimitsCount(spec),
+            panelKey: 'runtime-limits',
+            isExpanded: activeSectionKeys.includes('runtime-limits'),
+            onToggle: toggleSection,
+          },
           sectionLabelOptions,
         ),
+        collapsible: 'icon',
         children: (
           <Styled.SectionGrid>
             <Styled.FormRow>
@@ -330,13 +348,14 @@ export const RbacQueryForm: FC<TRbacQueryFormProps> = ({
     [
       onChange,
       onSelectorChange,
+      activeSectionKeys,
       sectionLabelOptions,
-      selectedApiVersions,
       selector,
       selectorLoading,
       selectorOptions,
       spec,
       token.colorText,
+      toggleSection,
       value,
     ],
   )
@@ -384,7 +403,7 @@ export const RbacQueryForm: FC<TRbacQueryFormProps> = ({
         activeKey={activeSectionKeys}
         bordered={false}
         expandIconPosition="end"
-        onChange={keys => setActiveSectionKeys(Array.isArray(keys) ? keys : [keys])}
+        onChange={handleCollapseChange}
       />
     </Styled.Container>
   )

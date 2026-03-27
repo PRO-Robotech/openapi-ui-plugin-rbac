@@ -12,10 +12,9 @@ export const updateSelector = (
   spec: { ...prev.spec, selector: { ...prev.spec.selector, ...patch } },
 })
 
-export const getPrimarySelectorCount = (spec: TRbacQueryPayload['spec'], selectedApiVersions: string[]) =>
+export const getPrimarySelectorCount = (spec: TRbacQueryPayload['spec']) =>
   [
     spec.selector.apiGroups,
-    selectedApiVersions,
     spec.selector.resources,
     spec.selector.verbs,
     spec.selector.resourceNames,

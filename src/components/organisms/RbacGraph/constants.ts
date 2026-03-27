@@ -30,7 +30,6 @@ export const DEFAULT_OPTIONS: TRbacGraphOptions = {
   onlyReachable: false,
   showPermissions: false,
   starMode: false,
-  focusMode: false,
   reduceEdgeCrossings: false,
   includePods: false,
   includeWorkloads: false,
@@ -38,9 +37,9 @@ export const DEFAULT_OPTIONS: TRbacGraphOptions = {
 
 export const EMPTY_SELECTOR_SELECTION = {
   apiGroups: [] as string[],
-  apiVersions: [] as string[],
   resources: [] as string[],
   verbs: [] as string[],
+  resourceNames: [] as string[],
   nonResourceURLs: [] as string[],
 }
 

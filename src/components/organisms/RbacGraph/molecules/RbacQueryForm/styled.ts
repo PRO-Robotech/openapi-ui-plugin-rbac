@@ -103,6 +103,27 @@ const SectionLabel = styled.div`
   min-width: 0;
 `
 
+const SectionLabelTrigger = styled.button`
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+
+  &:hover {
+    opacity: 0.88;
+  }
+
+  &:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 4px;
+  }
+`
+
 const SectionLabelMain = styled.div`
   display: flex;
   align-items: center;
@@ -203,6 +224,7 @@ export const Styled = {
   Description,
   Actions,
   SectionLabel,
+  SectionLabelTrigger,
   SectionLabelMain,
   SectionIcon,
   ActiveBadge,

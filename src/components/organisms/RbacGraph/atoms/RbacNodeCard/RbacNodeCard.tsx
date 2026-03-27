@@ -44,7 +44,15 @@ export const RbacNodeCard: FC<TRbacNodeCardProps> = memo(({ data, selected }) =>
     badgeValue,
   } = data as unknown as TRbacNodeData
   const borderColor = NODE_COLORS[nodeType] ?? '#475569'
-  const hiddenHandleStyle = { opacity: 0, width: 8, height: 8, pointerEvents: 'none' } as const
+  const hiddenHandleStyle = {
+    opacity: 0,
+    width: 8,
+    height: 8,
+    pointerEvents: 'none',
+    top: '50%',
+    left: '50%',
+    transform: 'translate(-50%, -50%)',
+  } as const
   const showRuleCount = RULE_COUNT_NODE_TYPES.has(nodeType) && ruleCount > 0
 
   return (
@@ -54,14 +62,8 @@ export const RbacNodeCard: FC<TRbacNodeCardProps> = memo(({ data, selected }) =>
       $isRoot={focusRoot || selected}
       style={{ background: token.colorBgContainer }}
     >
-      <Handle type="target" position={Position.Left} id="left" style={hiddenHandleStyle} />
-      <Handle type="target" position={Position.Top} id="top" style={hiddenHandleStyle} />
-      <Handle type="target" position={Position.Right} id="right" style={hiddenHandleStyle} />
-      <Handle type="target" position={Position.Bottom} id="bottom" style={hiddenHandleStyle} />
-      <Handle type="source" position={Position.Left} id="left" style={hiddenHandleStyle} />
-      <Handle type="source" position={Position.Top} id="top" style={hiddenHandleStyle} />
-      <Handle type="source" position={Position.Right} id="right" style={hiddenHandleStyle} />
-      <Handle type="source" position={Position.Bottom} id="bottom" style={hiddenHandleStyle} />
+      <Handle type="target" position={Position.Top} id="center" style={hiddenHandleStyle} />
+      <Handle type="source" position={Position.Top} id="center" style={hiddenHandleStyle} />
       <Styled.BadgeRow>
         <Styled.TypeBadge $color={borderColor}>{typeLabel}</Styled.TypeBadge>
         {showRuleCount && <Styled.RuleCountBadge $color={borderColor}>RULES {ruleCount}</Styled.RuleCountBadge>}
