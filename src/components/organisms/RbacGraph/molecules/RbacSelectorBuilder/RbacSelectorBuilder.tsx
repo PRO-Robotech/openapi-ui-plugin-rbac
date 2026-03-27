@@ -32,13 +32,6 @@ export const RbacSelectorBuilder: FC<TRbacSelectorBuilderProps> = ({
   const kindOptions = useMemo(() => {
     const groupValues = Array.from(new Set(kindsWithVersion.map(kind => kind.group))).sort((a, b) => a.localeCompare(b))
     const allowedGroups = selected.apiGroups.length > 0 ? new Set(selected.apiGroups) : null
-    const versionValues = Array.from(
-      new Set(
-        kindsWithVersion
-          .filter(kind => !allowedGroups || allowedGroups.has(kind.group))
-          .map(kind => kind.version.version),
-      ),
-    ).sort((a, b) => a.localeCompare(b))
     const resourceValues = Array.from(
       new Set(
         kindsWithVersion

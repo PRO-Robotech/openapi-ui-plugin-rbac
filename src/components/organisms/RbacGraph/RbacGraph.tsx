@@ -184,9 +184,7 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
 
   const [selectorSelection, setSelectorSelection] = useState(EMPTY_SELECTOR_SELECTION)
   const hasResourceFilters = Boolean(
-    selectorSelection.apiGroups.length ||
-      selectorSelection.resources.length ||
-      selectorSelection.resourceNames.length,
+    selectorSelection.apiGroups.length || selectorSelection.resources.length || selectorSelection.resourceNames.length,
   )
   const hasNonResourceFilters = Boolean(selectorSelection.nonResourceURLs.length)
   const {
