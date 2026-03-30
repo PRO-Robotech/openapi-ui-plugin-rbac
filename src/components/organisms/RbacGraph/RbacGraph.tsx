@@ -15,7 +15,7 @@ import {
   type EdgeTypes,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { useKinds, useK8sSmartResource } from '@prorobotech/openapi-k8s-toolkit'
+import { useKindsRaw, useK8sSmartResource } from '@prorobotech/openapi-k8s-toolkit'
 import { Alert, Button, Card, Checkbox, Collapse, Empty, Modal, Spin, Tag, Typography, theme } from 'antd'
 import axios from 'axios'
 import { FOOTER_HEIGHT } from 'constants/blocksSizes'
@@ -136,7 +136,7 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
     data: kindsData,
     isLoading: kindsLoading,
     error: kindsError,
-  } = useKinds({
+  } = useKindsRaw({
     cluster: clusterId,
     isEnabled: Boolean(clusterId),
   })
