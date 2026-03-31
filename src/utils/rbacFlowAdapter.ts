@@ -16,6 +16,10 @@ const EDGE_COLORS: Record<string, string> = {
 
 const DASHED_EDGES = new Set<TRbacEdgeType>(['aggregates', 'aggregates-source', 'aggregates-target'])
 
+const NODE_LAYER_Z_INDEX = 100
+const NAMESPACE_GROUP_Z_INDEX = -1
+const EDGE_LAYER_Z_INDEX = 1
+
 const NODE_TYPE_LABELS: Record<TRbacNodeType, string> = {
   role: 'Role',
   clusterRole: 'ClusterRole',
@@ -188,7 +192,7 @@ export const buildRbacFlowModel = (
       id: node.id,
       type: 'rbacCard',
       position: pos,
-      zIndex: 5,
+      zIndex: NODE_LAYER_Z_INDEX,
       data: {
         label: node.name,
         nodeType: node.type,
@@ -243,7 +247,7 @@ export const buildRbacFlowModel = (
           ? { width: providedBounds.width, height: providedBounds.height }
           : { width: maxX - minX + 2 * NS_PAD, height: maxY - minY + 2 * NS_PAD + NS_LABEL_H },
         data: { namespace: ns },
-        zIndex: -1,
+        zIndex: NAMESPACE_GROUP_Z_INDEX,
         selectable: false,
         draggable: false,
       })
@@ -336,7 +340,7 @@ export const applyFocusToModel = (
           opacity: active ? 1 : 0.08,
           strokeWidth: active ? baseWidth : Math.max(1, baseWidth - 0.6),
         },
-        zIndex: active ? 10 : 1,
+        zIndex: EDGE_LAYER_Z_INDEX,
       }
     }),
   }
@@ -400,6 +404,7 @@ export const applyStarSelectionToModel = (
           opacity: active ? 0.95 : 0.04,
           strokeWidth: active ? 2.2 : 1,
         },
+        zIndex: EDGE_LAYER_Z_INDEX,
       }
     }),
   }
