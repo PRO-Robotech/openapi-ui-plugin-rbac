@@ -1,18 +1,31 @@
 /* eslint-disable no-nested-ternary */
 import { useQuery } from '@tanstack/react-query'
 import axios from 'axios'
-import type { TRbacNode, TRbacRoleDetailsResponse } from 'localTypes/rbacGraph'
+import type { TRbacNode, TRbacQueryPayload, TRbacRoleDetailsResponse } from 'localTypes/rbacGraph'
 
 const getRbacRoleDetailsApiUrl = (clusterId: string) =>
   `/api/clusters/${clusterId}/k8s/apis/rbacgraph.incloud.io/v1alpha1/rolepermissionsviews`
 
-const buildRoleDetailsPayload = (node: Pick<TRbacNode, 'type' | 'name' | 'namespace'>) => ({
+type TRoleDetailsSelector = TRbacQueryPayload['spec']['selector']
+type TRoleDetailsMatchMode = TRbacQueryPayload['spec']['matchMode']
+
+const buildRoleDetailsPayload = ({
+  node,
+  selector,
+  matchMode,
+}: {
+  node: Pick<TRbacNode, 'type' | 'name' | 'namespace'>
+  selector: TRoleDetailsSelector
+  matchMode: TRoleDetailsMatchMode
+}) => ({
   spec: {
     role: {
       kind: node.type,
       name: node.name,
       ...(node.type === 'role' && node.namespace ? { namespace: node.namespace } : {}),
     },
+    selector,
+    matchMode,
   },
 })
 
@@ -136,18 +149,23 @@ const normalizeRoleDetailsResponse = (
 type TUseRbacRoleDetailsQueryArgs = {
   clusterId: string
   node: Pick<TRbacNode, 'type' | 'name' | 'namespace'> | null
+  selector: TRoleDetailsSelector
+  matchMode: TRoleDetailsMatchMode
 }
 
-export const useRbacRoleDetailsQuery = ({ clusterId, node }: TUseRbacRoleDetailsQueryArgs) =>
+export const useRbacRoleDetailsQuery = ({ clusterId, node, selector, matchMode }: TUseRbacRoleDetailsQueryArgs) =>
   useQuery({
     enabled: Boolean(clusterId && node),
-    queryKey: ['rbac-role-details', clusterId, node?.type, node?.name, node?.namespace],
+    queryKey: ['rbac-role-details', clusterId, node?.type, node?.name, node?.namespace, selector, matchMode],
     queryFn: async (): Promise<TRbacRoleDetailsResponse> => {
       if (!node) {
         throw new Error('Role details query requires a selected node.')
       }
 
-      const { data } = await axios.post(getRbacRoleDetailsApiUrl(clusterId), buildRoleDetailsPayload(node))
+      const { data } = await axios.post(
+        getRbacRoleDetailsApiUrl(clusterId),
+        buildRoleDetailsPayload({ node, selector, matchMode }),
+      )
       const status =
         typeof data === 'object' && data !== null && typeof data.status === 'object' && data.status !== null
           ? (data.status as TNewStatus)

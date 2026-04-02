@@ -123,6 +123,8 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
   const roleDetailsQuery = useRbacRoleDetailsQuery({
     clusterId,
     node: selectedRoleNode,
+    selector: payload.spec.selector,
+    matchMode: payload.spec.matchMode,
   })
 
   const kindsWithVersion = useMemo(() => kindsData?.kindsWithVersion ?? [], [kindsData?.kindsWithVersion])
