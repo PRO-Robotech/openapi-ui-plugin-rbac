@@ -1,9 +1,9 @@
 import React, { FC, useState } from 'react'
 import { CheckCircleOutlined, CheckOutlined, MinusOutlined } from '@ant-design/icons'
 import { Popover } from 'antd'
-import { RulePopoverContent } from './RulePopoverContent'
-import { Styled } from './styled'
-import type { TPermissionCellProps } from './types'
+import type { TPermissionCellProps } from '../../types'
+import { RulePopoverContent } from '../RulePopoverContent'
+import { Styled } from '../../styled'
 
 export const PermissionCell: FC<TPermissionCellProps> = ({
   allowed,

@@ -1,19 +1,17 @@
 import React, { FC } from 'react'
 import { Tag, Typography } from 'antd'
 import type { TRbacRoleDetailsRuleOrigin } from 'localTypes/rbacGraph'
-import { hexToRgba } from './utils'
-import type { TKindByResource, TMatchContext, TTokenLike } from './types'
+import { hexToRgba } from '../../utils'
+import type { TKindByResource, TMatchContext, TTokenLike } from '../../types'
 
 const { Text } = Typography
 
-type TRulePopoverContentProps = {
-  origins: TRbacRoleDetailsRuleOrigin[]
-  matchContext: TMatchContext
-  kindByResource: TKindByResource
+type TFieldLabelProps = {
+  children: React.ReactNode
   token: TTokenLike
 }
 
-const FieldLabel: FC<{ children: React.ReactNode; token: TTokenLike }> = ({ children, token }) => (
+const FieldLabel: FC<TFieldLabelProps> = ({ children, token }) => (
   <Text
     type="secondary"
     style={{
@@ -27,7 +25,13 @@ const FieldLabel: FC<{ children: React.ReactNode; token: TTokenLike }> = ({ chil
   </Text>
 )
 
-const ValueTag: FC<{ value: string; matched?: boolean; token: TTokenLike }> = ({ value, matched = false, token }) => (
+type TValueTagProps = {
+  value: string
+  matched?: boolean
+  token: TTokenLike
+}
+
+const ValueTag: FC<TValueTagProps> = ({ value, matched = false, token }) => (
   <Tag
     style={{
       marginInlineEnd: 0,
@@ -43,12 +47,14 @@ const ValueTag: FC<{ value: string; matched?: boolean; token: TTokenLike }> = ({
   </Tag>
 )
 
-const ResourceTag: FC<{
+type TResourceTagProps = {
   resource: string
   matched: boolean
   kindByResource: TKindByResource
   token: TTokenLike
-}> = ({ resource, matched, kindByResource, token }) => {
+}
+
+const ResourceTag: FC<TResourceTagProps> = ({ resource, matched, kindByResource, token }) => {
   const [parentResource, subresource] = resource.split('/')
   const displayValue = kindByResource.get(parentResource) ?? parentResource
 
@@ -72,12 +78,25 @@ const ResourceTag: FC<{
   )
 }
 
-const FieldSection: FC<{ label: string; token: TTokenLike; children: React.ReactNode }> = ({ label, token, children }) => (
+type TFieldSectionProps = {
+  label: string
+  token: TTokenLike
+  children: React.ReactNode
+}
+
+const FieldSection: FC<TFieldSectionProps> = ({ label, token, children }) => (
   <div style={{ marginBottom: 6 }}>
     <FieldLabel token={token}>{label}:</FieldLabel>
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 2 }}>{children}</div>
   </div>
 )
+
+type TRulePopoverContentProps = {
+  origins: TRbacRoleDetailsRuleOrigin[]
+  matchContext: TMatchContext
+  kindByResource: TKindByResource
+  token: TTokenLike
+}
 
 export const RulePopoverContent: FC<TRulePopoverContentProps> = ({ origins, matchContext, kindByResource, token }) => (
   <div style={{ maxWidth: 420, maxHeight: 400, overflow: 'auto' }}>

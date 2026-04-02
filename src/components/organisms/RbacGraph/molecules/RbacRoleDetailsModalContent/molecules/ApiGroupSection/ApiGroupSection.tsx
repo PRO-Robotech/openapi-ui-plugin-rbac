@@ -2,8 +2,8 @@ import React, { FC } from 'react'
 import { AppstoreOutlined, WarningOutlined } from '@ant-design/icons'
 import { Collapse, Tag, Typography } from 'antd'
 import type { TRbacRoleDetailsResourceGroup } from 'localTypes/rbacGraph'
-import { ResourcePermissionsTable } from './ResourcePermissionsTable'
-import type { TKindByResource, TTokenLike } from './types'
+import { ResourcePermissionsTable } from '../ResourcePermissionsTable'
+import type { TKindByResource, TTokenLike } from '../../types'
 
 const { Text } = Typography
 

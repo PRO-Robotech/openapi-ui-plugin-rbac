@@ -103,7 +103,9 @@ const normalizeRoleDetailsResponse = (
     nonResourceUrlEntries.length > 0
       ? nonResourceUrlEntries.map(permission => {
           const verbsRecord = permission.verbs ?? {}
-          const activeVerbs = Object.entries(verbsRecord).filter(([, verbPermission]) => verbPermission?.granted !== false)
+          const activeVerbs = Object.entries(verbsRecord).filter(
+            ([, verbPermission]) => verbPermission?.granted !== false,
+          )
 
           return {
             url: String(permission.url ?? ''),

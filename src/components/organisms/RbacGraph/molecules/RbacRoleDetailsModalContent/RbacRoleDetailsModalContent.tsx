@@ -2,8 +2,7 @@ import React, { FC, useMemo } from 'react'
 import { CheckCircleOutlined, CheckOutlined } from '@ant-design/icons'
 import { Empty, Tag, Typography } from 'antd'
 import type { TRbacRoleDetailsResponse } from 'localTypes/rbacGraph'
-import { ApiGroupSection } from './ApiGroupSection'
-import { NonResourceUrlsTable } from './NonResourceUrlsTable'
+import { ApiGroupSection, NonResourceUrlsTable } from './molecules'
 import { Styled } from './styled'
 import type { TTokenLike } from './types'
 
@@ -54,15 +53,11 @@ export const RbacRoleDetailsModalContent: FC<TRbacRoleDetailsModalContentProps> 
         <Styled.LegendRow>
           <Styled.LegendItem>
             <CheckOutlined style={{ fontSize: 12, color: token.colorPrimary }} />
-            <Text style={{ fontSize: 12, color: token.colorText }}>
-              Granted & supported
-            </Text>
+            <Text style={{ fontSize: 12, color: token.colorText }}>Granted & supported</Text>
           </Styled.LegendItem>
           <Styled.LegendItem>
             <CheckCircleOutlined style={{ fontSize: 14, color: token.colorPrimary, opacity: 0.6 }} />
-            <Text style={{ fontSize: 12, color: token.colorText }}>
-              Granted, not supported by API
-            </Text>
+            <Text style={{ fontSize: 12, color: token.colorText }}>Granted, not supported by API</Text>
           </Styled.LegendItem>
         </Styled.LegendRow>
       </div>

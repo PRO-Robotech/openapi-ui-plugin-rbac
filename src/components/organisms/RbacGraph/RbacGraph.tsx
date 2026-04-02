@@ -42,11 +42,7 @@ import {
 } from 'utils/rbacFlowAdapter'
 import { NamespaceGroupNode, RbacEdge, RbacNodeCard } from './atoms'
 import { RbacGraphToggles, RbacQueryForm, RbacRoleDetailsModalContent } from './molecules'
-import {
-  hasWildcard,
-  toSortedOptions,
-  decorateFlowModelWithResourceLabels,
-} from './utils'
+import { hasWildcard, toSortedOptions, decorateFlowModelWithResourceLabels } from './utils'
 import { LEGEND, DEFAULT_PAYLOAD, DEFAULT_OPTIONS, EMPTY_SELECTOR_SELECTION, ROLE_NODE_TYPES } from './constants'
 import { Styled } from './styled'
 

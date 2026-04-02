@@ -3,9 +3,9 @@ import { GlobalOutlined } from '@ant-design/icons'
 import { Collapse, Table, Tag, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import type { TRbacRoleDetailsNonResourceUrlPermission } from 'localTypes/rbacGraph'
-import { PermissionCell } from './PermissionCell'
-import { getVerbColor, sortVerbs } from './utils'
-import type { TKindByResource, TTokenLike } from './types'
+import { getVerbColor, sortVerbs } from '../../utils'
+import type { TKindByResource, TTokenLike } from '../../types'
+import { PermissionCell } from '../PermissionCell'
 
 const { Text } = Typography
 

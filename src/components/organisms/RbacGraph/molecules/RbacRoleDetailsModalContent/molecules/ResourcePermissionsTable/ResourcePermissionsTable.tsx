@@ -3,26 +3,22 @@ import { WarningOutlined } from '@ant-design/icons'
 import { Table, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import type { TRbacRoleDetailsResourceGroup, TRbacRoleDetailsResourcePermission } from 'localTypes/rbacGraph'
-import { RbacResourceLabel } from '../../atoms'
-import { PermissionCell } from './PermissionCell'
-import { ResourceNamesBadge } from './ResourceNamesBadge'
-import { getVerbColor, sortVerbs } from './utils'
-import type { TKindByResource, TTokenLike } from './types'
+import { RbacResourceLabel } from '../../../../atoms'
+import type { TKindByResource, TTokenLike } from '../../types'
+import { getVerbColor, sortVerbs } from '../../utils'
+import { PermissionCell } from '../PermissionCell'
+import { ResourceNamesBadge } from '../ResourceNamesBadge'
 
 const { Text } = Typography
 
-type TResourcePermissionsTableProps = {
-  group: TRbacRoleDetailsResourceGroup
-  token: TTokenLike
-  kindByResource: TKindByResource
-}
-
-const ResourceLabel: FC<{
+type TResourceLabelPRops = {
   permission: TRbacRoleDetailsResourcePermission
   badgeId: string
   kindByResource: TKindByResource
   token: TTokenLike
-}> = ({ permission, badgeId, kindByResource, token }) => {
+}
+
+const ResourceLabel: FC<TResourceLabelPRops> = ({ permission, badgeId, kindByResource, token }) => {
   const slashIndex = permission.resource.indexOf('/')
   const isSubresource = slashIndex !== -1
 
@@ -59,6 +55,12 @@ const ResourceLabel: FC<{
   )
 }
 
+type TResourcePermissionsTableProps = {
+  group: TRbacRoleDetailsResourceGroup
+  token: TTokenLike
+  kindByResource: TKindByResource
+}
+
 export const ResourcePermissionsTable: FC<TResourcePermissionsTableProps> = ({ group, token, kindByResource }) => {
   const activeVerbs = useMemo(() => {
     const verbSet = new Set<string>()
@@ -78,14 +80,18 @@ export const ResourcePermissionsTable: FC<TResourcePermissionsTableProps> = ({ g
         fixed: 'left',
         width: 280,
         render: (_, resource) => (
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', color: token.colorText }}>
+          <span
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', color: token.colorText }}
+          >
             <ResourceLabel
               permission={resource}
               badgeId={`modal-resource-${group.apiGroup}-${resource.resource}`}
               kindByResource={kindByResource}
               token={token}
             />
-            {resource.resourceNames.length > 0 && <ResourceNamesBadge resourceNames={resource.resourceNames} token={token} />}
+            {resource.resourceNames.length > 0 && (
+              <ResourceNamesBadge resourceNames={resource.resourceNames} token={token} />
+            )}
           </span>
         ),
       },

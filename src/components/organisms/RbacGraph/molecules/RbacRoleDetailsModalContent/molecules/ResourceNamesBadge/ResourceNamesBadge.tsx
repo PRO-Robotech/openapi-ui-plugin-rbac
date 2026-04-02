@@ -1,7 +1,7 @@
 import React, { FC } from 'react'
 import { FilterOutlined } from '@ant-design/icons'
 import { Popover, Tag, Typography } from 'antd'
-import type { TTokenLike } from './types'
+import type { TTokenLike } from '../../types'
 
 const { Text } = Typography
 
@@ -36,7 +36,12 @@ const ResourceNamesContent: FC<TResourceNamesBadgeProps> = ({ resourceNames, tok
 )
 
 export const ResourceNamesBadge: FC<TResourceNamesBadgeProps> = ({ resourceNames, token }) => (
-  <Popover content={<ResourceNamesContent resourceNames={resourceNames} token={token} />} title={null} trigger="click" placement="bottom">
+  <Popover
+    content={<ResourceNamesContent resourceNames={resourceNames} token={token} />}
+    title={null}
+    trigger="click"
+    placement="bottom"
+  >
     <Tag
       style={{
         marginInlineEnd: 0,
