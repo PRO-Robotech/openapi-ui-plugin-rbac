@@ -1,0 +1,1 @@
+export { RbacRoleDetailsModalContent } from './RbacRoleDetailsModalContent'

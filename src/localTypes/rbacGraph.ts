@@ -158,3 +158,64 @@ export type TRoleDetails = {
   rules: TRoleRuleDetail[]
   permissions: TParsedPermission[]
 }
+
+export type TRbacRoleDetailsRuleOrigin = {
+  apiGroups?: string[]
+  resources?: string[]
+  verbs: string[]
+  resourceNames?: string[]
+  nonResourceURLs?: string[]
+  sourceObjectUID?: string
+  sourceRuleIndex?: number
+}
+
+export type TRbacRoleDetailsResourcePermission = {
+  resource: string
+  kind: string | null
+  existsInApi: boolean | null
+  apiVerbs: string[] | null
+  resourceNames: string[]
+  verbs: string[]
+  verbOrigins: Record<string, TRbacRoleDetailsRuleOrigin[]>
+}
+
+export type TRbacRoleDetailsResourceGroup = {
+  apiGroup: string
+  displayName: string
+  existsInApi: boolean | null
+  resources: TRbacRoleDetailsResourcePermission[]
+}
+
+export type TRbacRoleDetailsNonResourceUrlPermission = {
+  url: string
+  verbs: string[]
+  verbOrigins: Record<string, TRbacRoleDetailsRuleOrigin[]>
+}
+
+export type TRbacRoleDetailsSubject = {
+  kind: string
+  name: string
+  namespace?: string
+}
+
+export type TRbacRoleDetailsBinding = {
+  kind: string
+  name: string
+  namespace?: string
+  subjects: TRbacRoleDetailsSubject[]
+}
+
+export type TRbacRoleDetailsResponse = {
+  uid: string
+  kind: string
+  name: string
+  namespace?: string
+  labels?: Record<string, string>
+  annotations?: Record<string, string>
+  aggregated?: boolean
+  aggregationSources?: string[]
+  rules: TRbacRoleDetailsRuleOrigin[]
+  resourceGroups: TRbacRoleDetailsResourceGroup[]
+  nonResourceUrls: TRbacRoleDetailsNonResourceUrlPermission[]
+  bindings?: TRbacRoleDetailsBinding[]
+}
