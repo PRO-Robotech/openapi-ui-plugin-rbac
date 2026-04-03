@@ -22,7 +22,7 @@ const buildRoleDetailsPayload = ({
     role: {
       kind: node.type,
       name: node.name,
-      ...(node.type === 'role' && node.namespace ? { namespace: node.namespace } : {}),
+      ...(node.type === 'Role' && node.namespace ? { namespace: node.namespace } : {}),
     },
     selector,
     matchMode,
@@ -134,7 +134,7 @@ const normalizeRoleDetailsResponse = (
     uid: '',
     kind: node.type,
     name: String(status.name ?? node.name),
-    namespace: node.type === 'role' ? node.namespace : undefined,
+    namespace: node.type === 'Role' ? node.namespace : undefined,
     labels: undefined,
     annotations: undefined,
     aggregated: false,

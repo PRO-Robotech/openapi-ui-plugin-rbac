@@ -614,7 +614,7 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
   const nonResourceUrlsErrorMessage =
     typeof nonResourceUrlsError === 'string' ? nonResourceUrlsError : nonResourceUrlsError?.message
   const roleDetailsTitle = selectedRoleNode
-    ? `${selectedRoleNode.type === 'clusterRole' ? 'clusterRole' : 'role'}: ${selectedRoleNode.name}`
+    ? `${selectedRoleNode.type === 'ClusterRole' ? 'ClusterRole' : 'Role'}: ${selectedRoleNode.name}`
     : ''
 
   useEffect(() => {
