@@ -87,7 +87,7 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
 
-  const queryMutation = useRbacGraphQuery()
+  const queryMutation = useRbacGraphQuery(clusterId)
 
   const {
     data: kindsData,

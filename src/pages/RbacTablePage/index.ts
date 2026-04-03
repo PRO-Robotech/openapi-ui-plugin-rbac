@@ -1,2 +1,1 @@
-export { RbacPage } from './RbacPage'
 export { RbacTablePage } from './RbacTablePage'
