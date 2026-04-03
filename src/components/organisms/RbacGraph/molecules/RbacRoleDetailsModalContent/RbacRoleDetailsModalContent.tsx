@@ -36,7 +36,7 @@ export const RbacRoleDetailsModalContent: FC<TRbacRoleDetailsModalContentProps> 
   return (
     <Styled.Container style={{ color: token.colorText }}>
       <Styled.SummaryRow>
-        <Tag>{data.kind || 'role'}</Tag>
+        <Tag>{data.kind || 'Role'}</Tag>
         {data.namespace && <Tag>{data.namespace}</Tag>}
         {data.aggregated && <Tag color="blue">{`aggregation sources: ${(data.aggregationSources ?? []).length}`}</Tag>}
         {Array.isArray(data.bindings) && <Tag>{`bindings: ${data.bindings.length}`}</Tag>}

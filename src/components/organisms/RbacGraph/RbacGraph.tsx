@@ -123,6 +123,8 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
   const roleDetailsQuery = useRbacRoleDetailsQuery({
     clusterId,
     node: selectedRoleNode,
+    selector: payload.spec.selector,
+    matchMode: payload.spec.matchMode,
   })
 
   const kindsWithVersion = useMemo(() => kindsData?.kindsWithVersion ?? [], [kindsData?.kindsWithVersion])
@@ -612,7 +614,7 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
   const nonResourceUrlsErrorMessage =
     typeof nonResourceUrlsError === 'string' ? nonResourceUrlsError : nonResourceUrlsError?.message
   const roleDetailsTitle = selectedRoleNode
-    ? `${selectedRoleNode.type === 'clusterRole' ? 'clusterRole' : 'role'}: ${selectedRoleNode.name}`
+    ? `${selectedRoleNode.type === 'ClusterRole' ? 'ClusterRole' : 'Role'}: ${selectedRoleNode.name}`
     : ''
 
   useEffect(() => {

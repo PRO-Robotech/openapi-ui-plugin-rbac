@@ -10,6 +10,7 @@ import {
   type SimulationNodeDatum,
   type SimulationLinkDatum,
 } from 'd3-force'
+import { SUBJECT_NODE_TYPES } from 'components/organisms/RbacGraph/constants'
 import type { TRbacGraph, TRbacNode, TRbacEdge } from 'localTypes/rbacGraph'
 import type { TPositionMap } from './rbacForceLayout'
 
@@ -35,8 +36,7 @@ type TSimNode = SimulationNodeDatum & { id: string }
 type TTypedLink = SimulationLinkDatum<TSimNode> & { dist: number; str: number; virtual?: boolean }
 type TBBox = { minX: number; minY: number; maxX: number; maxY: number; nodeIndices: number[] }
 
-const SUBJECT_TYPES = new Set<TRbacNode['type']>(['subject'])
-const BINDING_TYPES = new Set<TRbacNode['type']>(['clusterRoleBinding', 'roleBinding'])
+const BINDING_TYPES = new Set<TRbacNode['type']>(['ClusterRoleBinding', 'RoleBinding'])
 
 const createEdgeAvoidForce = (realLinks: TTypedLink[], threshold: number, strength: number) => {
   let nodes: TSimNode[] = []
@@ -223,7 +223,7 @@ const createCenterSubjectsForce = (simNodes: TSimNode[], nodeMap: Map<string, TR
         if (!node) return
 
         let pull = -k * 0.3
-        if (SUBJECT_TYPES.has(node.type)) {
+        if (SUBJECT_NODE_TYPES.has(node.type)) {
           pull = k
         } else if (BINDING_TYPES.has(node.type)) {
           pull = k * 0.15

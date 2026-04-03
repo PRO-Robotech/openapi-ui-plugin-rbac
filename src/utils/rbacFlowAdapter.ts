@@ -1,6 +1,7 @@
 import type { Node, Edge } from '@xyflow/react'
 import type { TRbacGraph, TRbacEdgeType, TRbacGraphOptions, TRbacNodeType } from 'localTypes/rbacGraph'
 import type { TRbacLayoutResult, TRoutePoint } from 'utils/rbacForceLayout'
+import { SUBJECT_NODE_TYPES } from 'components/organisms/RbacGraph/constants'
 
 const EDGE_COLORS: Record<string, string> = {
   grants: '#64748b',
@@ -21,17 +22,19 @@ const NAMESPACE_GROUP_Z_INDEX = -1
 const EDGE_LAYER_Z_INDEX = 1
 
 const NODE_TYPE_LABELS: Record<TRbacNodeType, string> = {
-  role: 'Role',
-  clusterRole: 'ClusterRole',
-  roleBinding: 'RoleBinding',
-  clusterRoleBinding: 'ClusterRoleBinding',
+  Role: 'Role',
+  ClusterRole: 'ClusterRole',
+  RoleBinding: 'RoleBinding',
+  ClusterRoleBinding: 'ClusterRoleBinding',
   aggregationRelation: 'Aggregation',
   permission: 'Permission',
-  pod: 'Pod',
-  podOverflow: 'Pods (overflow)',
-  workload: 'Workload',
-  workloadOverflow: 'Workloads (overflow)',
-  subject: 'Subject',
+  User: 'User',
+  Group: 'Group',
+  ServiceAccount: 'ServiceAccount',
+  Pod: 'Pod',
+  PodOverflow: 'Pods (overflow)',
+  Workload: 'Workload',
+  WorkloadOverflow: 'Workloads (overflow)',
 }
 
 const isStructuralEdge = (type: TRbacEdgeType) => type === 'grants' || type === 'subjects'
@@ -54,7 +57,7 @@ export const collectFilteredGraphState = (graph: TRbacGraph, options: TRbacGraph
 
   if (!options.showRoles) {
     graph.nodes.forEach(node => {
-      if (node.type === 'role' || node.type === 'clusterRole') {
+      if (node.type === 'Role' || node.type === 'ClusterRole') {
         hiddenNodeIds.add(node.id)
       }
     })
@@ -62,7 +65,7 @@ export const collectFilteredGraphState = (graph: TRbacGraph, options: TRbacGraph
 
   if (!options.showBindings) {
     graph.nodes.forEach(node => {
-      if (node.type === 'roleBinding' || node.type === 'clusterRoleBinding') {
+      if (node.type === 'RoleBinding' || node.type === 'ClusterRoleBinding') {
         hiddenNodeIds.add(node.id)
       }
     })
@@ -72,7 +75,7 @@ export const collectFilteredGraphState = (graph: TRbacGraph, options: TRbacGraph
     const subjectNodeIds = new Set<string>()
 
     graph.nodes.forEach(node => {
-      if (node.type === 'subject') {
+      if (SUBJECT_NODE_TYPES.has(node.type)) {
         subjectNodeIds.add(node.id)
       }
     })
@@ -88,7 +91,7 @@ export const collectFilteredGraphState = (graph: TRbacGraph, options: TRbacGraph
 
   if (!options.includePods) {
     graph.nodes.forEach(node => {
-      if (node.type === 'pod' || node.type === 'podOverflow') {
+      if (node.type === 'Pod' || node.type === 'PodOverflow') {
         hiddenNodeIds.add(node.id)
       }
     })
@@ -96,7 +99,7 @@ export const collectFilteredGraphState = (graph: TRbacGraph, options: TRbacGraph
 
   if (!options.includeWorkloads) {
     graph.nodes.forEach(node => {
-      if (node.type === 'workload' || node.type === 'workloadOverflow') {
+      if (node.type === 'Workload' || node.type === 'WorkloadOverflow') {
         hiddenNodeIds.add(node.id)
       }
     })

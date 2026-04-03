@@ -43,4 +43,5 @@ export const EMPTY_SELECTOR_SELECTION = {
   nonResourceURLs: [] as string[],
 }
 
-export const ROLE_NODE_TYPES = new Set<TRbacNode['type']>(['role', 'clusterRole'])
+export const ROLE_NODE_TYPES = new Set<TRbacNode['type']>(['Role', 'ClusterRole'])
+export const SUBJECT_NODE_TYPES = new Set<TRbacNode['type']>(['User', 'Group', 'ServiceAccount'])

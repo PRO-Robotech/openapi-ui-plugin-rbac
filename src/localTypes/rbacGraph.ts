@@ -1,17 +1,19 @@
 import { type Node, type Edge } from '@xyflow/react'
 
 export type TRbacNodeType =
-  | 'role'
-  | 'clusterRole'
-  | 'roleBinding'
-  | 'clusterRoleBinding'
+  | 'Role'
+  | 'ClusterRole'
+  | 'RoleBinding'
+  | 'ClusterRoleBinding'
   | 'aggregationRelation'
   | 'permission'
-  | 'pod'
-  | 'podOverflow'
-  | 'workload'
-  | 'workloadOverflow'
-  | 'subject'
+  | 'User'
+  | 'Group'
+  | 'ServiceAccount'
+  | 'Pod'
+  | 'PodOverflow'
+  | 'Workload'
+  | 'WorkloadOverflow'
 
 export type TRbacEdgeType =
   | 'grants'
