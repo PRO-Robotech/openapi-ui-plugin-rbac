@@ -512,10 +512,7 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
   const nonResourceUrlsErrorMessage =
     typeof nonResourceUrlsError === 'string' ? nonResourceUrlsError : nonResourceUrlsError?.message
   const roleDetailsToken = useMemo(() => getRoleDetailsToken(token), [token])
-  const tableScrollY = useMemo(
-    () => Math.max(240, tableHeight - TABLE_SCROLL_RESERVED_HEIGHT),
-    [tableHeight],
-  )
+  const tableScrollY = useMemo(() => Math.max(240, tableHeight - TABLE_SCROLL_RESERVED_HEIGHT), [tableHeight])
 
   useEffect(() => {
     const updateTableHeight = () => {

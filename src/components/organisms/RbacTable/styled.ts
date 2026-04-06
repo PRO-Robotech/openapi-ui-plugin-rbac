@@ -25,13 +25,13 @@ const StatsBar = styled.div`
   opacity: 0.8;
 `
 
-const TableContainer = styled.div<
-  THeightProps & {
+type TTableContainerProps = THeightProps & {
   $colorBgContainer: string
   $colorBorder: string
   $borderRadius: number
 }
->`
+
+const TableContainer = styled.div<TTableContainerProps>`
   height: ${({ $height }) => `${$height}px`};
   min-height: 320px;
   display: flex;
@@ -54,6 +54,7 @@ const TableContainer = styled.div<
   }
 
   .ant-table-header {
+    /* stylelint-disable declaration-no-important  */
     overflow: hidden !important;
     border-bottom: 1px solid ${({ $colorBorder }) => $colorBorder};
   }
@@ -70,6 +71,8 @@ const TableContainer = styled.div<
     padding: 12px 16px;
     vertical-align: top;
   }
+
+  /* stylelint-disable selector-no-qualifying-type */
 
   .ant-table-tbody > tr.ant-table-row {
     cursor: pointer;
