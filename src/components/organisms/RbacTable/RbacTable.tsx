@@ -1,9 +1,10 @@
 /* eslint-disable max-lines-per-function */
-import React, { FC, useCallback, useEffect, useMemo, useState } from 'react'
+import React, { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ColumnsType } from 'antd/es/table'
 import { useKindsRaw, useK8sSmartResource } from '@prorobotech/openapi-k8s-toolkit'
 import { Alert, Card, Descriptions, Empty, Modal, Spin, Table, Tag, Typography, theme } from 'antd'
 import axios from 'axios'
+import { FOOTER_HEIGHT } from 'constants/blocksSizes'
 import type {
   TRbacNode,
   TRbacQueryPayload,
@@ -15,30 +16,19 @@ import type {
 } from 'localTypes/rbacGraph'
 import { useRbacGraphQuery } from 'hooks/useRbacGraphQuery'
 import { useRbacRoleDetailsQuery } from 'hooks/useRbacRoleDetailsQuery'
+import { RbacResourceLabel } from 'components/organisms/RbacGraph/atoms/RbacResourceLabel'
 import { RbacQueryForm, RbacRoleDetailsModalContent } from 'components/organisms/RbacGraph/molecules'
 import { DEFAULT_PAYLOAD, EMPTY_SELECTOR_SELECTION, ROLE_NODE_TYPES } from 'components/organisms/RbacGraph/constants'
 import { hasWildcard, toSortedOptions } from 'components/organisms/RbacGraph/utils'
+import {
+  buildRoleTableRows,
+  type TRoleTableRow,
+  type TTableAggregationSource,
+  type TTableSubject,
+} from './buildRoleTableRows'
 import { Styled } from './styled'
 
 type TSelectorSelection = typeof EMPTY_SELECTOR_SELECTION
-
-type TTableRow = {
-  key: string
-  nodeId: string
-  connectedNodeId: string | null
-  type: string
-  name: string
-  namespace: string
-  aggregated: boolean
-  matchedRuleCount: number
-  incomingCount: number
-  outgoingCount: number
-  connectionDirection: 'incoming' | 'outgoing' | 'none'
-  relationType: string
-  connectedNodeType: string
-  connectedNodeName: string
-  connectedNodeNamespace: string
-}
 
 const getQueryErrorMessage = (error: unknown) => {
   if (axios.isAxiosError(error)) {
@@ -56,88 +46,65 @@ const getQueryErrorMessage = (error: unknown) => {
   return 'Query execution failed.'
 }
 
-const buildTableRows = (graph: TGraph | null): TTableRow[] => {
-  if (!graph) return []
-
-  const nodeById = new Map(graph.nodes.map(node => [node.id, node] as const))
-  const incoming = new Map<string, number>()
-  const outgoing = new Map<string, number>()
-  const rows: TTableRow[] = []
-
-  graph.edges.forEach(edge => {
-    incoming.set(edge.to, (incoming.get(edge.to) ?? 0) + 1)
-    outgoing.set(edge.from, (outgoing.get(edge.from) ?? 0) + 1)
-  })
-
-  const sortedNodes = [...graph.nodes].sort((left, right) => {
-    const typeCompare = left.type.localeCompare(right.type)
-    if (typeCompare !== 0) return typeCompare
-
-    const namespaceCompare = (left.namespace ?? '').localeCompare(right.namespace ?? '')
-    if (namespaceCompare !== 0) return namespaceCompare
-
-    return left.name.localeCompare(right.name)
-  })
-
-  sortedNodes.forEach(node => {
-    const baseRow = {
-      type: node.type,
-      name: node.name,
-      namespace: node.namespace ?? 'cluster-wide',
-      aggregated: Boolean(node.aggregated),
-      matchedRuleCount: node.matchedRuleRefs?.length ?? 0,
-      incomingCount: incoming.get(node.id) ?? 0,
-      outgoingCount: outgoing.get(node.id) ?? 0,
-    }
-
-    const connectedEdges = graph.edges
-      .filter(edge => edge.from === node.id || edge.to === node.id)
-      .sort((left, right) => left.type.localeCompare(right.type) || left.id.localeCompare(right.id))
-
-    if (connectedEdges.length === 0) {
-      rows.push({
-        key: `${node.id}::none`,
-        nodeId: node.id,
-        connectedNodeId: null,
-        ...baseRow,
-        connectionDirection: 'none',
-        relationType: '-',
-        connectedNodeType: '-',
-        connectedNodeName: '-',
-        connectedNodeNamespace: '-',
-      })
-      return
-    }
-
-    connectedEdges.forEach(edge => {
-      const isOutgoing = edge.from === node.id
-      const connectedNode = nodeById.get(isOutgoing ? edge.to : edge.from)
-
-      rows.push({
-        key: `${node.id}::${edge.id}::${isOutgoing ? 'out' : 'in'}`,
-        nodeId: node.id,
-        connectedNodeId: connectedNode?.id ?? null,
-        ...baseRow,
-        connectionDirection: isOutgoing ? 'outgoing' : 'incoming',
-        relationType: edge.type,
-        connectedNodeType: connectedNode?.type ?? '-',
-        connectedNodeName: connectedNode?.name ?? '-',
-        connectedNodeNamespace: connectedNode?.namespace ?? 'cluster-wide',
-      })
-    })
-  })
-
-  return rows
-}
-
 const renderAggregated = (value: boolean) =>
   value ? <Tag color="orange">yes</Tag> : <Typography.Text type="secondary">no</Typography.Text>
 
-const renderDirection = (value: TTableRow['connectionDirection']) => {
-  if (value === 'outgoing') return <Tag color="blue">outgoing</Tag>
-  if (value === 'incoming') return <Tag color="cyan">incoming</Tag>
+const MIN_TABLE_HEIGHT = 320
+const TABLE_SCROLL_RESERVED_HEIGHT = 56
 
-  return <Typography.Text type="secondary">none</Typography.Text>
+const formatSubjectLabel = ({ kind, name, namespace }: TTableSubject) => {
+  if (kind === 'ServiceAccount') {
+    return namespace ? `${namespace}/${name}` : name
+  }
+
+  return namespace ? `${name} (${namespace})` : name
+}
+
+const formatAggregationSourceLabel = ({ name, namespace }: TTableAggregationSource) =>
+  namespace ? `${namespace}/${name}` : name
+
+const renderRoleLabel = (row: TRoleTableRow) => (
+  <RbacResourceLabel badgeId={`rbac-table-role-${row.roleNodeId}`} value={row.roleName} badgeValue={row.roleKind} />
+)
+
+const renderSubjects = (subjects: TTableSubject[]) => {
+  if (subjects.length === 0) {
+    return <Typography.Text type="secondary">-</Typography.Text>
+  }
+
+  return (
+    <Styled.ResourceList>
+      {subjects.map(subject => (
+        <Styled.ResourceListItem key={subject.key}>
+          <RbacResourceLabel
+            badgeId={`rbac-table-subject-${subject.key}`}
+            value={formatSubjectLabel(subject)}
+            badgeValue={subject.kind}
+          />
+        </Styled.ResourceListItem>
+      ))}
+    </Styled.ResourceList>
+  )
+}
+
+const renderAggregationSources = (sources: TTableAggregationSource[]) => {
+  if (sources.length === 0) {
+    return <Typography.Text type="secondary">-</Typography.Text>
+  }
+
+  return (
+    <Styled.ResourceList>
+      {sources.map(source => (
+        <Styled.ResourceListItem key={source.key}>
+          <RbacResourceLabel
+            badgeId={`rbac-table-aggregator-${source.key}`}
+            value={formatAggregationSourceLabel(source)}
+            badgeValue={source.type}
+          />
+        </Styled.ResourceListItem>
+      ))}
+    </Styled.ResourceList>
+  )
 }
 
 const getRoleDetailsToken = (token: ReturnType<typeof theme.useToken>['token']) => ({
@@ -163,12 +130,15 @@ const getRoleDetailsToken = (token: ReturnType<typeof theme.useToken>['token']) 
 
 export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
   const { token } = theme.useToken()
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const chromeRef = useRef<HTMLDivElement | null>(null)
   const [payload, setPayload] = useState<TRbacQueryPayload>(DEFAULT_PAYLOAD)
   const [graphData, setGraphData] = useState<TGraph | null>(null)
   const [stats, setStats] = useState<TRbacQueryResponse['stats']>()
   const [queryErrorMessage, setQueryErrorMessage] = useState<string | null>(null)
   const [selectorSelection, setSelectorSelection] = useState<TSelectorSelection>(EMPTY_SELECTOR_SELECTION)
   const [selectedRowKey, setSelectedRowKey] = useState<string | null>(null)
+  const [tableHeight, setTableHeight] = useState(MIN_TABLE_HEIGHT)
 
   const queryMutation = useRbacGraphQuery(clusterId)
 
@@ -440,35 +410,18 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
     selectorSelection,
   ])
 
-  const rows = useMemo(() => buildTableRows(graphData), [graphData])
+  const rows = useMemo(() => buildRoleTableRows(graphData), [graphData])
   const selectedRow = useMemo(() => rows.find(row => row.key === selectedRowKey) ?? null, [rows, selectedRowKey])
   const nodeById = useMemo(() => new Map(graphData?.nodes.map(node => [node.id, node] as const) ?? []), [graphData])
   const selectedNode = useMemo(() => {
     if (!selectedRow) return null
-    return nodeById.get(selectedRow.nodeId) ?? null
-  }, [nodeById, selectedRow])
-  const selectedConnectedNode = useMemo(() => {
-    if (!selectedRow?.connectedNodeId) return null
-    return nodeById.get(selectedRow.connectedNodeId) ?? null
+    return nodeById.get(selectedRow.roleNodeId) ?? null
   }, [nodeById, selectedRow])
 
   const primaryRoleNode = useMemo<Pick<TRbacNode, 'type' | 'name' | 'namespace'> | null>(() => {
     if (!selectedNode || !ROLE_NODE_TYPES.has(selectedNode.type)) return null
     return selectedNode
   }, [selectedNode])
-  const secondaryRoleNode = useMemo<Pick<TRbacNode, 'type' | 'name' | 'namespace'> | null>(() => {
-    if (!selectedConnectedNode || !ROLE_NODE_TYPES.has(selectedConnectedNode.type)) return null
-    if (
-      primaryRoleNode &&
-      primaryRoleNode.type === selectedConnectedNode.type &&
-      primaryRoleNode.name === selectedConnectedNode.name &&
-      primaryRoleNode.namespace === selectedConnectedNode.namespace
-    ) {
-      return null
-    }
-
-    return selectedConnectedNode
-  }, [primaryRoleNode, selectedConnectedNode])
 
   const primaryRoleDetailsQuery = useRbacRoleDetailsQuery({
     clusterId,
@@ -479,31 +432,15 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
     filterPhantomAPIs: payload.spec.filterPhantomAPIs,
   })
 
-  const secondaryRoleDetailsQuery = useRbacRoleDetailsQuery({
-    clusterId,
-    node: secondaryRoleNode,
-    selector: payload.spec.selector,
-    matchMode: payload.spec.matchMode,
-    wildcardMode: payload.spec.wildcardMode,
-    filterPhantomAPIs: payload.spec.filterPhantomAPIs,
-  })
-
-  const columns = useMemo<ColumnsType<TTableRow>>(
+  const columns = useMemo<ColumnsType<TRoleTableRow>>(
     () => [
       {
-        title: 'Type',
-        dataIndex: 'type',
-        key: 'type',
-        width: 170,
-        sorter: (left, right) => left.type.localeCompare(right.type),
-        render: value => <Tag>{value}</Tag>,
-      },
-      {
-        title: 'Name',
-        dataIndex: 'name',
-        key: 'name',
-        width: 260,
-        sorter: (left, right) => left.name.localeCompare(right.name),
+        title: 'Role',
+        key: 'role',
+        width: 320,
+        sorter: (left, right) =>
+          left.roleKind.localeCompare(right.roleKind) || left.roleName.localeCompare(right.roleName),
+        render: (_, row) => renderRoleLabel(row),
       },
       {
         title: 'Namespace',
@@ -528,55 +465,18 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
         sorter: (left, right) => left.matchedRuleCount - right.matchedRuleCount,
       },
       {
-        title: 'Incoming',
-        dataIndex: 'incomingCount',
-        key: 'incomingCount',
-        width: 120,
-        sorter: (left, right) => left.incomingCount - right.incomingCount,
+        title: 'Accounts',
+        dataIndex: 'subjects',
+        key: 'subjects',
+        width: 420,
+        render: renderSubjects,
       },
       {
-        title: 'Outgoing',
-        dataIndex: 'outgoingCount',
-        key: 'outgoingCount',
-        width: 120,
-        sorter: (left, right) => left.outgoingCount - right.outgoingCount,
-      },
-      {
-        title: 'Direction',
-        dataIndex: 'connectionDirection',
-        key: 'connectionDirection',
-        width: 130,
-        sorter: (left, right) => left.connectionDirection.localeCompare(right.connectionDirection),
-        render: renderDirection,
-      },
-      {
-        title: 'Relation',
-        dataIndex: 'relationType',
-        key: 'relationType',
-        width: 170,
-        sorter: (left, right) => left.relationType.localeCompare(right.relationType),
-        render: value => <Tag>{value}</Tag>,
-      },
-      {
-        title: 'Connected Type',
-        dataIndex: 'connectedNodeType',
-        key: 'connectedNodeType',
-        width: 170,
-        sorter: (left, right) => left.connectedNodeType.localeCompare(right.connectedNodeType),
-      },
-      {
-        title: 'Connected Name',
-        dataIndex: 'connectedNodeName',
-        key: 'connectedNodeName',
-        width: 260,
-        sorter: (left, right) => left.connectedNodeName.localeCompare(right.connectedNodeName),
-      },
-      {
-        title: 'Connected Namespace',
-        dataIndex: 'connectedNodeNamespace',
-        key: 'connectedNodeNamespace',
-        width: 180,
-        sorter: (left, right) => left.connectedNodeNamespace.localeCompare(right.connectedNodeNamespace),
+        title: 'Aggregators',
+        dataIndex: 'aggregationSources',
+        key: 'aggregationSources',
+        width: 360,
+        render: renderAggregationSources,
       },
     ],
     [],
@@ -612,11 +512,45 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
   const nonResourceUrlsErrorMessage =
     typeof nonResourceUrlsError === 'string' ? nonResourceUrlsError : nonResourceUrlsError?.message
   const roleDetailsToken = useMemo(() => getRoleDetailsToken(token), [token])
+  const tableScrollY = useMemo(
+    () => Math.max(240, tableHeight - TABLE_SCROLL_RESERVED_HEIGHT),
+    [tableHeight],
+  )
+
+  useEffect(() => {
+    const updateTableHeight = () => {
+      const containerRect = containerRef.current?.getBoundingClientRect()
+      const chromeHeight = chromeRef.current?.getBoundingClientRect().height ?? 0
+
+      if (!containerRect) return
+
+      const viewportHeight = window.innerHeight
+      const nextHeight = Math.max(
+        MIN_TABLE_HEIGHT,
+        Math.floor(viewportHeight - containerRect.top - chromeHeight - FOOTER_HEIGHT - 16),
+      )
+
+      setTableHeight(prev => (prev === nextHeight ? prev : nextHeight))
+    }
+
+    updateTableHeight()
+
+    const resizeObserver = new ResizeObserver(() => updateTableHeight())
+    if (containerRef.current) resizeObserver.observe(containerRef.current)
+    if (chromeRef.current) resizeObserver.observe(chromeRef.current)
+
+    window.addEventListener('resize', updateTableHeight)
+
+    return () => {
+      resizeObserver.disconnect()
+      window.removeEventListener('resize', updateTableHeight)
+    }
+  }, [graphData, stats, kindsError, nonResourceUrlsError, queryErrorMessage, queryMutation.isPending])
 
   const content = (() => {
     if (queryMutation.isPending) {
       return (
-        <Styled.SpinContainer>
+        <Styled.SpinContainer $height={tableHeight}>
           <Spin tip="Loading table data..." />
         </Styled.SpinContainer>
       )
@@ -624,7 +558,7 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
 
     if (!graphData) {
       return (
-        <Styled.EmptyState>
+        <Styled.EmptyState $height={tableHeight}>
           <Empty
             image={Empty.PRESENTED_IMAGE_SIMPLE}
             description="Configure selectors and run a query to view RBAC results as a table."
@@ -635,17 +569,18 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
 
     return (
       <Styled.TableContainer
+        $height={tableHeight}
         $colorBgContainer={token.colorBgContainer}
         $colorBorder={token.colorBorder}
         $borderRadius={token.borderRadius}
       >
-        <Table<TTableRow>
+        <Table<TRoleTableRow>
           rowKey="key"
           dataSource={rows}
           columns={columns}
           size="small"
           pagination={false}
-          scroll={{ x: 1200, y: 640 }}
+          scroll={{ x: 1200, y: tableScrollY }}
           onRow={record => ({
             onClick: () => setSelectedRowKey(record.key),
           })}
@@ -679,64 +614,49 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
     return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No role details were returned." />
   })()
 
-  const secondaryRoleContent = (() => {
-    if (!secondaryRoleNode) return null
-    if (secondaryRoleDetailsQuery.isLoading) {
-      return (
-        <Styled.SpinContainer>
-          <Spin tip="Loading related role details..." />
-        </Styled.SpinContainer>
-      )
-    }
-    if (secondaryRoleDetailsQuery.isError) {
-      return (
-        <Alert
-          type="error"
-          message="Error while loading related role details"
-          description={getQueryErrorMessage(secondaryRoleDetailsQuery.error)}
-        />
-      )
-    }
-    if (secondaryRoleDetailsQuery.data) {
-      return <RbacRoleDetailsModalContent data={secondaryRoleDetailsQuery.data} token={roleDetailsToken} />
-    }
-
-    return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No related role details were returned." />
-  })()
-
   return (
-    <Styled.Container>
-      <Card size="small" styles={{ body: { padding: 0 } }}>
-        <RbacQueryForm
-          value={payload}
-          selectorLoading={kindsLoading || nonResourceUrlsLoading}
-          selectorOptions={selectorOptions}
-          onSelectorChange={(patch, changedKey) => handleSelectorChange({ ...selectorSelection, ...patch }, changedKey)}
-          onChange={setPayload}
-          onSubmit={handleSubmit}
-          onReset={handleReset}
-          loading={queryMutation.isPending}
-        />
-      </Card>
+    <Styled.Container ref={containerRef}>
+      <Styled.Chrome ref={chromeRef}>
+        <Card size="small" styles={{ body: { padding: 0 } }}>
+          <RbacQueryForm
+            value={payload}
+            selectorLoading={kindsLoading || nonResourceUrlsLoading}
+            selectorOptions={selectorOptions}
+            onSelectorChange={(patch, changedKey) =>
+              handleSelectorChange({ ...selectorSelection, ...patch }, changedKey)
+            }
+            onChange={setPayload}
+            onSubmit={handleSubmit}
+            onReset={handleReset}
+            loading={queryMutation.isPending}
+          />
+        </Card>
 
-      {kindsError && (
-        <Alert type="error" message="Error while loading Kubernetes kinds" description={kindsError.message} />
-      )}
+        {kindsError && (
+          <Alert type="error" message="Error while loading Kubernetes kinds" description={kindsError.message} />
+        )}
 
-      {nonResourceUrlsError && (
-        <Alert type="error" message="Error while loading non-resource URLs" description={nonResourceUrlsErrorMessage} />
-      )}
+        {nonResourceUrlsError && (
+          <Alert
+            type="error"
+            message="Error while loading non-resource URLs"
+            description={nonResourceUrlsErrorMessage}
+          />
+        )}
 
-      {queryErrorMessage && <Alert type="error" message="Error while running query" description={queryErrorMessage} />}
+        {queryErrorMessage && (
+          <Alert type="error" message="Error while running query" description={queryErrorMessage} />
+        )}
 
-      {stats && (
-        <Styled.StatsBar>
-          <span>Roles: {stats.matchedRoles}</span>
-          <span>Bindings: {stats.matchedBindings}</span>
-          <span>Subjects: {stats.matchedSubjects}</span>
-          <span>Rows: {rows.length}</span>
-        </Styled.StatsBar>
-      )}
+        {stats && (
+          <Styled.StatsBar>
+            <span>Roles: {stats.matchedRoles}</span>
+            <span>Bindings: {stats.matchedBindings}</span>
+            <span>Subjects: {stats.matchedSubjects}</span>
+            <span>Rows: {rows.length}</span>
+          </Styled.StatsBar>
+        )}
+      </Styled.Chrome>
 
       {content}
       <Modal
@@ -746,36 +666,31 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
         width={1400}
         centered
         destroyOnHidden
-        title={selectedRow ? `${selectedRow.type}: ${selectedRow.name}` : 'RBAC relation details'}
+        title={selectedRow ? `${selectedRow.roleKind}: ${selectedRow.roleName}` : 'RBAC role details'}
       >
         {!selectedRow || !selectedNode ? (
           <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No row is selected." />
         ) : (
           <>
             <Descriptions size="small" bordered column={2} style={{ marginBottom: 16 }}>
-              <Descriptions.Item label="Node">{`${selectedRow.type}: ${selectedRow.name}`}</Descriptions.Item>
+              <Descriptions.Item label="Role">{`${selectedRow.roleKind}: ${selectedRow.roleName}`}</Descriptions.Item>
               <Descriptions.Item label="Namespace">{selectedRow.namespace}</Descriptions.Item>
-              <Descriptions.Item label="Direction">{selectedRow.connectionDirection}</Descriptions.Item>
-              <Descriptions.Item label="Relation">{selectedRow.relationType}</Descriptions.Item>
-              <Descriptions.Item label="Connected Node">
-                {selectedConnectedNode ? `${selectedRow.connectedNodeType}: ${selectedRow.connectedNodeName}` : 'None'}
-              </Descriptions.Item>
-              <Descriptions.Item label="Connected Namespace">{selectedRow.connectedNodeNamespace}</Descriptions.Item>
+              <Descriptions.Item label="Accounts">{selectedRow.subjectsCount}</Descriptions.Item>
+              <Descriptions.Item label="Aggregators">{selectedRow.aggregationSourcesCount}</Descriptions.Item>
               <Descriptions.Item label="Matched Rules">{selectedRow.matchedRuleCount}</Descriptions.Item>
-              <Descriptions.Item label="Edges">{`${selectedRow.incomingCount} in / ${selectedRow.outgoingCount} out`}</Descriptions.Item>
+              <Descriptions.Item label="Aggregated">{renderAggregated(selectedRow.aggregated)}</Descriptions.Item>
+              <Descriptions.Item label="Account List" span={2}>
+                {renderSubjects(selectedRow.subjects)}
+              </Descriptions.Item>
+              <Descriptions.Item label="Aggregator Roles" span={2}>
+                {renderAggregationSources(selectedRow.aggregationSources)}
+              </Descriptions.Item>
             </Descriptions>
 
             {primaryRoleNode && (
-              <div style={{ marginBottom: 24 }}>
+              <div>
                 <Typography.Title level={5}>{`${primaryRoleNode.type}: ${primaryRoleNode.name}`}</Typography.Title>
                 {primaryRoleContent}
-              </div>
-            )}
-
-            {secondaryRoleNode && (
-              <div>
-                <Typography.Title level={5}>{`${secondaryRoleNode.type}: ${secondaryRoleNode.name}`}</Typography.Title>
-                {secondaryRoleContent}
               </div>
             )}
           </>
