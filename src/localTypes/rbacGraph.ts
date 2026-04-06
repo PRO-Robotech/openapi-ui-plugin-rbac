@@ -75,12 +75,14 @@ export type TRbacQueryPayload = {
   spec: {
     selector: TRbacSelector
     matchMode: 'any' | 'all'
+    wildcardMode: 'expand' | 'exact'
     includeRuleMetadata: boolean
     includePods: boolean
     includeWorkloads: boolean
     podPhaseMode: 'active' | 'running' | 'all'
     maxPodsPerSubject: number
     maxWorkloadsPerPod: number
+    filterPhantomAPIs: boolean
     namespaceScope?: TRbacNamespaceScope
     impersonateUser?: string
     impersonateGroup?: string

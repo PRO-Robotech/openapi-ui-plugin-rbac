@@ -235,6 +235,14 @@ export const RbacQueryForm: FC<TRbacQueryFormProps> = ({
             </Styled.FormRow>
 
             <Styled.FormRow>
+              <Styled.Label $color={token.colorText}>Wildcard Mode</Styled.Label>
+              <Select value={spec.wildcardMode} onChange={v => onChange(updateSpec(value, { wildcardMode: v }))}>
+                <Select.Option value="expand">Expand</Select.Option>
+                <Select.Option value="exact">Exact</Select.Option>
+              </Select>
+            </Styled.FormRow>
+
+            <Styled.FormRow>
               <Styled.Label $color={token.colorText}>Namespace Scope Namespaces</Styled.Label>
               <Select
                 allowClear
@@ -256,6 +264,38 @@ export const RbacQueryForm: FC<TRbacQueryFormProps> = ({
             </Styled.FormRow>
 
             <Styled.FormRow>
+              <Styled.Label $color={token.colorText}>Impersonate User</Styled.Label>
+              <Input
+                value={spec.impersonateUser}
+                onChange={e => onChange(updateSpec(value, { impersonateUser: e.target.value || undefined }))}
+                placeholder="Impersonate user"
+              />
+            </Styled.FormRow>
+
+            <Styled.FormRow>
+              <Styled.Label $color={token.colorText}>Impersonate Group</Styled.Label>
+              <Input
+                value={spec.impersonateGroup}
+                onChange={e => onChange(updateSpec(value, { impersonateGroup: e.target.value || undefined }))}
+                placeholder="Impersonate group"
+              />
+            </Styled.FormRow>
+
+            <Styled.GridSpacer aria-hidden />
+
+            <Styled.FormRow>
+              <Styled.Label $color={token.colorText}>Filter Phantom APIs</Styled.Label>
+              <Styled.CheckboxWrap>
+                <Checkbox
+                  checked={spec.filterPhantomAPIs}
+                  onChange={e => onChange(updateSpec(value, { filterPhantomAPIs: e.target.checked }))}
+                >
+                  Hide phantom API resources
+                </Checkbox>
+              </Styled.CheckboxWrap>
+            </Styled.FormRow>
+
+            <Styled.FormRow>
               <Styled.Label $color={token.colorText}>Namespace Scope Strict</Styled.Label>
               <Styled.CheckboxWrap>
                 <Checkbox
@@ -273,24 +313,6 @@ export const RbacQueryForm: FC<TRbacQueryFormProps> = ({
                   Restrict namespace matches strictly
                 </Checkbox>
               </Styled.CheckboxWrap>
-            </Styled.FormRow>
-
-            <Styled.FormRow>
-              <Styled.Label $color={token.colorText}>Impersonate User</Styled.Label>
-              <Input
-                value={spec.impersonateUser}
-                onChange={e => onChange(updateSpec(value, { impersonateUser: e.target.value || undefined }))}
-                placeholder="Impersonate user"
-              />
-            </Styled.FormRow>
-
-            <Styled.FormRow>
-              <Styled.Label $color={token.colorText}>Impersonate Group</Styled.Label>
-              <Input
-                value={spec.impersonateGroup}
-                onChange={e => onChange(updateSpec(value, { impersonateGroup: e.target.value || undefined }))}
-                placeholder="Impersonate group"
-              />
             </Styled.FormRow>
           </Styled.SectionGrid>
         ),

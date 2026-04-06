@@ -8,15 +8,20 @@ const getRbacRoleDetailsApiUrl = (clusterId: string) =>
 
 type TRoleDetailsSelector = TRbacQueryPayload['spec']['selector']
 type TRoleDetailsMatchMode = TRbacQueryPayload['spec']['matchMode']
+type TRoleDetailsWildcardMode = TRbacQueryPayload['spec']['wildcardMode']
 
 const buildRoleDetailsPayload = ({
   node,
   selector,
   matchMode,
+  wildcardMode,
+  filterPhantomAPIs,
 }: {
   node: Pick<TRbacNode, 'type' | 'name' | 'namespace'>
   selector: TRoleDetailsSelector
   matchMode: TRoleDetailsMatchMode
+  wildcardMode: TRoleDetailsWildcardMode
+  filterPhantomAPIs: boolean
 }) => ({
   spec: {
     role: {
@@ -26,6 +31,8 @@ const buildRoleDetailsPayload = ({
     },
     selector,
     matchMode,
+    wildcardMode,
+    filterPhantomAPIs,
   },
 })
 
@@ -151,12 +158,31 @@ type TUseRbacRoleDetailsQueryArgs = {
   node: Pick<TRbacNode, 'type' | 'name' | 'namespace'> | null
   selector: TRoleDetailsSelector
   matchMode: TRoleDetailsMatchMode
+  wildcardMode: TRoleDetailsWildcardMode
+  filterPhantomAPIs: boolean
 }
 
-export const useRbacRoleDetailsQuery = ({ clusterId, node, selector, matchMode }: TUseRbacRoleDetailsQueryArgs) =>
+export const useRbacRoleDetailsQuery = ({
+  clusterId,
+  node,
+  selector,
+  matchMode,
+  wildcardMode,
+  filterPhantomAPIs,
+}: TUseRbacRoleDetailsQueryArgs) =>
   useQuery({
     enabled: Boolean(clusterId && node),
-    queryKey: ['rbac-role-details', clusterId, node?.type, node?.name, node?.namespace, selector, matchMode],
+    queryKey: [
+      'rbac-role-details',
+      clusterId,
+      node?.type,
+      node?.name,
+      node?.namespace,
+      selector,
+      matchMode,
+      wildcardMode,
+      filterPhantomAPIs,
+    ],
     queryFn: async (): Promise<TRbacRoleDetailsResponse> => {
       if (!node) {
         throw new Error('Role details query requires a selected node.')
@@ -164,7 +190,7 @@ export const useRbacRoleDetailsQuery = ({ clusterId, node, selector, matchMode }
 
       const { data } = await axios.post(
         getRbacRoleDetailsApiUrl(clusterId),
-        buildRoleDetailsPayload({ node, selector, matchMode }),
+        buildRoleDetailsPayload({ node, selector, matchMode, wildcardMode, filterPhantomAPIs }),
       )
       const status =
         typeof data === 'object' && data !== null && typeof data.status === 'object' && data.status !== null

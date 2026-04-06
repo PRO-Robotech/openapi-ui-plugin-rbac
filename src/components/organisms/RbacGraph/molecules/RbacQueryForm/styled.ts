@@ -214,6 +214,12 @@ const CheckboxWrap = styled.div`
   align-items: center;
 `
 
+const GridSpacer = styled.div`
+  @media (width <= 768px) {
+    display: none;
+  }
+`
+
 export const Styled = {
   Container,
   Header,
@@ -233,4 +239,5 @@ export const Styled = {
   FormRow,
   Label,
   CheckboxWrap,
+  GridSpacer,
 }
