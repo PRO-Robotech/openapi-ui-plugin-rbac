@@ -475,6 +475,8 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
     node: primaryRoleNode,
     selector: payload.spec.selector,
     matchMode: payload.spec.matchMode,
+    wildcardMode: payload.spec.wildcardMode,
+    filterPhantomAPIs: payload.spec.filterPhantomAPIs,
   })
 
   const secondaryRoleDetailsQuery = useRbacRoleDetailsQuery({
@@ -482,6 +484,8 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
     node: secondaryRoleNode,
     selector: payload.spec.selector,
     matchMode: payload.spec.matchMode,
+    wildcardMode: payload.spec.wildcardMode,
+    filterPhantomAPIs: payload.spec.filterPhantomAPIs,
   })
 
   const columns = useMemo<ColumnsType<TTableRow>>(

@@ -9,10 +9,12 @@ export const DEFAULT_SPEC: TRbacQueryPayload['spec'] = {
     nonResourceURLs: [],
   },
   matchMode: 'any',
+  wildcardMode: 'expand',
   includeRuleMetadata: true,
   includePods: false,
   includeWorkloads: false,
   podPhaseMode: 'active',
   maxPodsPerSubject: 20,
   maxWorkloadsPerPod: 10,
+  filterPhantomAPIs: true,
 }

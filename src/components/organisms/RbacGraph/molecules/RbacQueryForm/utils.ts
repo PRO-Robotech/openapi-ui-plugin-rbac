@@ -24,6 +24,8 @@ export const getPrimarySelectorCount = (spec: TRbacQueryPayload['spec']) =>
 export const getScopeIdentityCount = (spec: TRbacQueryPayload['spec']) =>
   [
     spec.matchMode !== DEFAULT_SPEC.matchMode,
+    spec.wildcardMode !== DEFAULT_SPEC.wildcardMode,
+    spec.filterPhantomAPIs !== DEFAULT_SPEC.filterPhantomAPIs,
     Boolean(spec.namespaceScope?.namespaces?.length),
     Boolean(spec.namespaceScope?.strict),
     Boolean(spec.impersonateUser),

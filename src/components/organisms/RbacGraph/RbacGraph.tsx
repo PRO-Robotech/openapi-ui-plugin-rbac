@@ -125,6 +125,8 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
     node: selectedRoleNode,
     selector: payload.spec.selector,
     matchMode: payload.spec.matchMode,
+    wildcardMode: payload.spec.wildcardMode,
+    filterPhantomAPIs: payload.spec.filterPhantomAPIs,
   })
 
   const kindsWithVersion = useMemo(() => kindsData?.kindsWithVersion ?? [], [kindsData?.kindsWithVersion])
