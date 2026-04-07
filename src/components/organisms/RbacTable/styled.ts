@@ -19,10 +19,56 @@ const Chrome = styled.div`
 const StatsBar = styled.div`
   display: flex;
   flex-wrap: wrap;
-  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 16px;
   padding: 8px 16px;
   font-size: 12px;
   opacity: 0.8;
+`
+
+const StatsMetrics = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  min-width: 0;
+`
+
+const ScopeFilters = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+`
+
+const ScopeFilterButton = styled.button<{
+  $active: boolean
+  $color: string
+  $background: string
+  $border: string
+  $text: string
+}>`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border: 1px solid ${({ $active, $border, $color }) => ($active ? $color : $border)};
+  border-radius: 8px;
+  background: ${({ $active, $background }) => ($active ? $background : 'transparent')};
+  color: ${({ $active, $text, $color }) => ($active ? $color : $text)};
+  cursor: pointer;
+  font: inherit;
+  transition:
+    border-color 0.2s ease,
+    background-color 0.2s ease,
+    color 0.2s ease,
+    opacity 0.2s ease;
+
+  &:hover {
+    border-color: ${({ $color }) => $color};
+    color: ${({ $color }) => $color};
+  }
 `
 
 type TTableContainerProps = THeightProps & {
@@ -118,13 +164,99 @@ const ResourceListItem = styled.div`
   min-width: 0;
 `
 
+const AccountBindingList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+`
+
+const AccountBindingRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex-wrap: nowrap;
+`
+
+const AccountBindingSection = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex-wrap: nowrap;
+`
+
+const AccountBindingTextGroup = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+
+  .ant-tag {
+    margin-inline-end: 0;
+    flex-shrink: 0;
+  }
+
+  > span:last-child,
+  .ant-typography,
+  .ant-typography a,
+  a {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+`
+
+const AccountBindingMain = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
+`
+
+const AccountBindingArrow = styled.span`
+  color: rgb(0 0 0 / 35%);
+  line-height: 1;
+  flex-shrink: 0;
+  padding-top: 4px;
+`
+
+const InlineTags = styled.div`
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 6px;
+  min-width: 0;
+  flex-shrink: 0;
+
+  .ant-tag {
+    margin-inline-end: 0;
+  }
+`
+
 export const Styled = {
   Container,
   Chrome,
   StatsBar,
+  StatsMetrics,
+  ScopeFilters,
+  ScopeFilterButton,
   TableContainer,
   EmptyState,
   SpinContainer,
   ResourceList,
   ResourceListItem,
+  AccountBindingList,
+  AccountBindingRow,
+  AccountBindingSection,
+  AccountBindingTextGroup,
+  AccountBindingMain,
+  AccountBindingArrow,
+  InlineTags,
 }
