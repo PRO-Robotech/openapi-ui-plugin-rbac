@@ -203,6 +203,8 @@ const AccountBindingTextGroup = styled.span`
     flex-shrink: 0;
   }
 
+  /* stylelint-disable no-descending-specificity */
+
   > span:last-child,
   .ant-typography,
   .ant-typography a,
