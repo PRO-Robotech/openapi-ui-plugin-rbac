@@ -9,6 +9,7 @@ type TRbacResourceLabelProps = {
   badgeValue?: string
   showBadge?: boolean
   textClassName?: string
+  textNode?: React.ReactNode
 }
 
 const normalizeBadgeValue = (value: string) =>
@@ -40,6 +41,7 @@ export const RbacResourceLabel: FC<TRbacResourceLabelProps> = ({
   badgeValue,
   showBadge = true,
   textClassName,
+  textNode,
 }) => {
   const { mode: theme } = useThemeMode()
   const effectiveBadgeValue = normalizeBadgeValue(badgeValue ?? value)
@@ -51,7 +53,7 @@ export const RbacResourceLabel: FC<TRbacResourceLabelProps> = ({
       {showBadge && bgColor.length > 0 && (
         <Styled.ResourceBadgeAbbr $bgColor={bgColor}>{abbr}</Styled.ResourceBadgeAbbr>
       )}
-      <span className={textClassName}>{value}</span>
+      {textNode ?? <span className={textClassName}>{value}</span>}
     </Styled.ResourceLabel>
   )
 }

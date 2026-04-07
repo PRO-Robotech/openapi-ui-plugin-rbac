@@ -1,9 +1,19 @@
 /* eslint-disable max-lines-per-function */
 import React, { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  ArrowLeftOutlined,
+  ArrowRightOutlined,
+  CompressOutlined,
+  EyeOutlined,
+  GlobalOutlined,
+  WarningOutlined,
+} from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { useKindsRaw, useK8sSmartResource } from '@prorobotech/openapi-k8s-toolkit'
-import { Alert, Card, Descriptions, Empty, Modal, Spin, Table, Tag, Typography, theme } from 'antd'
+import type { TNavigationResource } from '@prorobotech/openapi-k8s-toolkit'
+import { Alert, Button, Card, Descriptions, Empty, Modal, Spin, Table, Tag, Tooltip, Typography, theme } from 'antd'
 import axios from 'axios'
+import { useNavigate } from 'react-router-dom'
 import { FOOTER_HEIGHT } from 'constants/blocksSizes'
 import type {
   TRbacNode,
@@ -20,15 +30,24 @@ import { RbacResourceLabel } from 'components/organisms/RbacGraph/atoms/RbacReso
 import { RbacQueryForm, RbacRoleDetailsModalContent } from 'components/organisms/RbacGraph/molecules'
 import { DEFAULT_PAYLOAD, EMPTY_SELECTOR_SELECTION, ROLE_NODE_TYPES } from 'components/organisms/RbacGraph/constants'
 import { hasWildcard, toSortedOptions } from 'components/organisms/RbacGraph/utils'
+import { getNavigationBaseFactoriesMapping, getRbacResourceHref, RBAC_NAVIGATION_QUERY } from 'utils/rbacResourceLink'
 import {
   buildRoleTableRows,
+  type TTableAccountBinding,
   type TRoleTableRow,
   type TTableAggregationSource,
+  type TTableScope,
   type TTableSubject,
 } from './buildRoleTableRows'
 import { Styled } from './styled'
 
 type TSelectorSelection = typeof EMPTY_SELECTOR_SELECTION
+type TScopeFilterItem = {
+  scope: TTableScope
+  label: string
+  count: number
+  icon: React.ReactNode
+}
 
 const getQueryErrorMessage = (error: unknown) => {
   if (axios.isAxiosError(error)) {
@@ -52,42 +71,298 @@ const renderAggregated = (value: boolean) =>
 const MIN_TABLE_HEIGHT = 320
 const TABLE_SCROLL_RESERVED_HEIGHT = 56
 
-const formatSubjectLabel = ({ kind, name, namespace }: TTableSubject) => {
-  if (kind === 'ServiceAccount') {
-    return namespace ? `${namespace}/${name}` : name
-  }
-
-  return namespace ? `${name} (${namespace})` : name
-}
+const formatSubjectLabel = ({ name }: TTableSubject) => name
 
 const formatAggregationSourceLabel = ({ name, namespace }: TTableAggregationSource) =>
   namespace ? `${namespace}/${name}` : name
 
-const renderRoleLabel = (row: TRoleTableRow) => (
-  <RbacResourceLabel badgeId={`rbac-table-role-${row.roleNodeId}`} value={row.roleName} badgeValue={row.roleKind} />
-)
+const getScopeTagStyle = (
+  scope: TTableScope,
+  token: ReturnType<typeof theme.useToken>['token'],
+): React.CSSProperties => {
+  if (scope === 'cluster-wide') {
+    return {
+      color: token.gold7,
+      backgroundColor: token.gold1,
+      borderColor: token.gold3,
+    }
+  }
 
-const renderSubjects = (subjects: TTableSubject[]) => {
-  if (subjects.length === 0) {
+  if (scope === 'narrowed') {
+    return {
+      color: token.blue7,
+      backgroundColor: token.blue1,
+      borderColor: token.blue3,
+    }
+  }
+
+  if (scope === 'same-ns') {
+    return {
+      color: token.green7,
+      backgroundColor: token.green1,
+      borderColor: token.green3,
+    }
+  }
+
+  if (scope === 'cross-ns') {
+    return {
+      color: token.volcano7,
+      backgroundColor: token.volcano1,
+      borderColor: token.volcano3,
+    }
+  }
+
+  return {
+    color: token.colorTextSecondary,
+    backgroundColor: token.colorFillAlter,
+    borderColor: token.colorBorder,
+  }
+}
+
+const LinkedResourceLabel = ({
+  badgeId,
+  value,
+  badgeValue,
+  href,
+  navigate,
+}: {
+  badgeId: string
+  value: string
+  badgeValue?: string
+  href?: string
+  navigate: ReturnType<typeof useNavigate>
+}) => {
+  const label = <RbacResourceLabel badgeId={badgeId} value={value} badgeValue={badgeValue} />
+  if (!href) return label
+
+  return (
+    <RbacResourceLabel
+      badgeId={badgeId}
+      value={value}
+      badgeValue={badgeValue}
+      textNode={
+        <Typography.Link
+          onClick={event => {
+            event.preventDefault()
+            event.stopPropagation()
+            navigate(href)
+          }}
+        >
+          {value}
+        </Typography.Link>
+      }
+    />
+  )
+}
+
+const renderRoleLabel = ({
+  row,
+  clusterId,
+  baseFactoriesMapping,
+  navigate,
+}: {
+  row: TRoleTableRow
+  clusterId: string
+  baseFactoriesMapping?: Record<string, string>
+  navigate: ReturnType<typeof useNavigate>
+}) => {
+  const href = getRbacResourceHref({
+    clusterId,
+    node: {
+      type: row.roleKind,
+      name: row.roleName,
+      namespace: row.roleKind === 'Role' && row.namespace !== 'cluster-wide' ? row.namespace : undefined,
+    },
+    baseFactoriesMapping,
+  })
+
+  if (row.roleKind === 'Role' && row.namespace !== 'cluster-wide') {
+    return (
+      <RbacResourceLabel
+        badgeId={`rbac-table-role-${row.roleNodeId}`}
+        value={row.roleName}
+        badgeValue={row.roleKind}
+        textNode={
+          <Styled.AccountBindingTextGroup>
+            <Tag color="orange">{row.namespace}</Tag>
+            {href ? (
+              <Typography.Link
+                onClick={event => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  navigate(href)
+                }}
+              >
+                {row.roleName}
+              </Typography.Link>
+            ) : (
+              <span>{row.roleName}</span>
+            )}
+          </Styled.AccountBindingTextGroup>
+        }
+      />
+    )
+  }
+
+  return (
+    <LinkedResourceLabel
+      badgeId={`rbac-table-role-${row.roleNodeId}`}
+      value={row.roleName}
+      badgeValue={row.roleKind}
+      href={href}
+      navigate={navigate}
+    />
+  )
+}
+
+const renderAccountBindings = ({
+  accountBindings,
+  clusterId,
+  baseFactoriesMapping,
+  navigate,
+  token,
+}: {
+  accountBindings: TTableAccountBinding[]
+  clusterId: string
+  baseFactoriesMapping?: Record<string, string>
+  navigate: ReturnType<typeof useNavigate>
+  token: ReturnType<typeof theme.useToken>['token']
+}) => {
+  if (accountBindings.length === 0) {
     return <Typography.Text type="secondary">-</Typography.Text>
   }
 
   return (
-    <Styled.ResourceList>
-      {subjects.map(subject => (
-        <Styled.ResourceListItem key={subject.key}>
-          <RbacResourceLabel
-            badgeId={`rbac-table-subject-${subject.key}`}
-            value={formatSubjectLabel(subject)}
-            badgeValue={subject.kind}
-          />
-        </Styled.ResourceListItem>
+    <Styled.AccountBindingList>
+      {accountBindings.map(accountBinding => (
+        <Styled.AccountBindingRow key={accountBinding.key}>
+          <Styled.AccountBindingSection>
+            {accountBinding.subject ? (
+              (() => {
+                const { subject } = accountBinding
+                if (!subject) return null
+                const { key, kind, name, namespace } = subject
+                const subjectHref =
+                  kind === 'ServiceAccount'
+                    ? getRbacResourceHref({
+                        clusterId,
+                        node: {
+                          type: 'ServiceAccount',
+                          name,
+                          namespace,
+                        },
+                        baseFactoriesMapping,
+                      })
+                    : undefined
+
+                return (
+                  <RbacResourceLabel
+                    badgeId={`rbac-table-subject-${key}`}
+                    value={formatSubjectLabel(subject)}
+                    badgeValue={kind}
+                    textNode={
+                      <Styled.AccountBindingTextGroup>
+                        {namespace && <Tag color="orange">{namespace}</Tag>}
+                        {subjectHref ? (
+                          <Typography.Link
+                            onClick={event => {
+                              event.preventDefault()
+                              event.stopPropagation()
+                              navigate(subjectHref)
+                            }}
+                          >
+                            {formatSubjectLabel(subject)}
+                          </Typography.Link>
+                        ) : (
+                          <span>{formatSubjectLabel(subject)}</span>
+                        )}
+                      </Styled.AccountBindingTextGroup>
+                    }
+                  />
+                )
+              })()
+            ) : (
+              <Typography.Text type="secondary">no subject</Typography.Text>
+            )}
+          </Styled.AccountBindingSection>
+
+          <Styled.AccountBindingArrow>
+            <ArrowLeftOutlined />
+          </Styled.AccountBindingArrow>
+
+          <Styled.AccountBindingSection>
+            {accountBinding.binding ? (
+              (() => {
+                const { binding } = accountBinding
+                if (!binding) return null
+                const { key, kind, name, namespace } = binding
+                const bindingHref = getRbacResourceHref({
+                  clusterId,
+                  node: {
+                    type: kind,
+                    name,
+                    namespace,
+                  },
+                  baseFactoriesMapping,
+                })
+
+                return (
+                  <RbacResourceLabel
+                    badgeId={`rbac-table-binding-${key}`}
+                    value={name}
+                    badgeValue={kind}
+                    textNode={
+                      <Styled.AccountBindingTextGroup>
+                        {namespace && <Tag color="orange">{namespace}</Tag>}
+                        {bindingHref ? (
+                          <Typography.Link
+                            onClick={event => {
+                              event.preventDefault()
+                              event.stopPropagation()
+                              navigate(bindingHref)
+                            }}
+                          >
+                            {name}
+                          </Typography.Link>
+                        ) : (
+                          <span>{name}</span>
+                        )}
+                      </Styled.AccountBindingTextGroup>
+                    }
+                  />
+                )
+              })()
+            ) : (
+              <Typography.Text type="secondary">no binding</Typography.Text>
+            )}
+          </Styled.AccountBindingSection>
+
+          <Styled.AccountBindingArrow>
+            <ArrowRightOutlined />
+          </Styled.AccountBindingArrow>
+
+          <Styled.AccountBindingMain>
+            <Tag bordered style={getScopeTagStyle(accountBinding.scope, token)}>
+              {accountBinding.scope}
+            </Tag>
+          </Styled.AccountBindingMain>
+        </Styled.AccountBindingRow>
       ))}
-    </Styled.ResourceList>
+    </Styled.AccountBindingList>
   )
 }
 
-const renderAggregationSources = (sources: TTableAggregationSource[]) => {
+const renderAggregationSources = ({
+  sources,
+  clusterId,
+  baseFactoriesMapping,
+  navigate,
+}: {
+  sources: TTableAggregationSource[]
+  clusterId: string
+  baseFactoriesMapping?: Record<string, string>
+  navigate: ReturnType<typeof useNavigate>
+}) => {
   if (sources.length === 0) {
     return <Typography.Text type="secondary">-</Typography.Text>
   }
@@ -96,10 +371,24 @@ const renderAggregationSources = (sources: TTableAggregationSource[]) => {
     <Styled.ResourceList>
       {sources.map(source => (
         <Styled.ResourceListItem key={source.key}>
-          <RbacResourceLabel
+          <LinkedResourceLabel
             badgeId={`rbac-table-aggregator-${source.key}`}
             value={formatAggregationSourceLabel(source)}
             badgeValue={source.type}
+            href={
+              source.type === 'Role' || source.type === 'ClusterRole'
+                ? getRbacResourceHref({
+                    clusterId,
+                    node: {
+                      type: source.type,
+                      name: source.name,
+                      namespace: source.namespace,
+                    },
+                    baseFactoriesMapping,
+                  })
+                : undefined
+            }
+            navigate={navigate}
           />
         </Styled.ResourceListItem>
       ))}
@@ -129,6 +418,7 @@ const getRoleDetailsToken = (token: ReturnType<typeof theme.useToken>['token']) 
 })
 
 export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
+  const navigate = useNavigate()
   const { token } = theme.useToken()
   const containerRef = useRef<HTMLDivElement | null>(null)
   const chromeRef = useRef<HTMLDivElement | null>(null)
@@ -139,6 +429,7 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
   const [selectorSelection, setSelectorSelection] = useState<TSelectorSelection>(EMPTY_SELECTOR_SELECTION)
   const [selectedRowKey, setSelectedRowKey] = useState<string | null>(null)
   const [tableHeight, setTableHeight] = useState(MIN_TABLE_HEIGHT)
+  const [scopeFilters, setScopeFilters] = useState<TTableScope[]>([])
 
   const queryMutation = useRbacGraphQuery(clusterId)
 
@@ -162,6 +453,17 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
     plural: 'nonresourceurls',
     isEnabled: Boolean(clusterId),
   })
+
+  const { data: navigationData } = useK8sSmartResource<{ items: TNavigationResource[] }>({
+    cluster: clusterId,
+    apiGroup: RBAC_NAVIGATION_QUERY.apiGroup,
+    apiVersion: RBAC_NAVIGATION_QUERY.apiVersion,
+    plural: RBAC_NAVIGATION_QUERY.plural,
+    fieldSelector: RBAC_NAVIGATION_QUERY.fieldSelector,
+    isEnabled: Boolean(clusterId),
+  })
+
+  const baseFactoriesMapping = useMemo(() => getNavigationBaseFactoriesMapping(navigationData), [navigationData])
 
   const hasResourceFilters = Boolean(
     selectorSelection.apiGroups.length || selectorSelection.resources.length || selectorSelection.resourceNames.length,
@@ -411,7 +713,72 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
   ])
 
   const rows = useMemo(() => buildRoleTableRows(graphData), [graphData])
-  const selectedRow = useMemo(() => rows.find(row => row.key === selectedRowKey) ?? null, [rows, selectedRowKey])
+  const scopeFilterItems = useMemo<TScopeFilterItem[]>(() => {
+    const counts = new Map<TTableScope, number>()
+
+    rows.forEach(row => {
+      row.accountBindings.forEach(accountBinding => {
+        counts.set(accountBinding.scope, (counts.get(accountBinding.scope) ?? 0) + 1)
+      })
+    })
+
+    const items: TScopeFilterItem[] = [
+      {
+        scope: 'cluster-wide',
+        label: 'cluster',
+        count: counts.get('cluster-wide') ?? 0,
+        icon: <GlobalOutlined />,
+      },
+      {
+        scope: 'cross-ns',
+        label: 'cross-ns',
+        count: counts.get('cross-ns') ?? 0,
+        icon: <WarningOutlined />,
+      },
+      {
+        scope: 'narrowed',
+        label: 'narrowed',
+        count: counts.get('narrowed') ?? 0,
+        icon: <CompressOutlined rotate={45} />,
+      },
+      {
+        scope: 'same-ns',
+        label: 'same-ns',
+        count: counts.get('same-ns') ?? 0,
+        icon: <CompressOutlined />,
+      },
+      {
+        scope: 'orphan',
+        label: 'orphan',
+        count: counts.get('orphan') ?? 0,
+        icon: <WarningOutlined />,
+      },
+    ]
+
+    return items.filter(item => item.count > 0)
+  }, [rows])
+  const filteredRows = useMemo(() => {
+    if (scopeFilters.length === 0) {
+      return rows
+    }
+
+    return rows
+      .map(row => {
+        const accountBindings = row.accountBindings.filter(accountBinding =>
+          scopeFilters.includes(accountBinding.scope),
+        )
+
+        return {
+          ...row,
+          accountBindings,
+        }
+      })
+      .filter(row => row.accountBindings.length > 0)
+  }, [rows, scopeFilters])
+  const selectedRow = useMemo(
+    () => filteredRows.find(row => row.key === selectedRowKey) ?? null,
+    [filteredRows, selectedRowKey],
+  )
   const nodeById = useMemo(() => new Map(graphData?.nodes.map(node => [node.id, node] as const) ?? []), [graphData])
   const selectedNode = useMemo(() => {
     if (!selectedRow) return null
@@ -435,19 +802,37 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
   const columns = useMemo<ColumnsType<TRoleTableRow>>(
     () => [
       {
+        title: '',
+        key: 'actions',
+        width: 72,
+        fixed: 'left',
+        align: 'center',
+        render: (_, row) => (
+          <Tooltip title="Open details">
+            <Button
+              aria-label={`Open details for ${row.roleKind} ${row.roleName}`}
+              icon={<EyeOutlined />}
+              onClick={event => {
+                event.stopPropagation()
+                setSelectedRowKey(row.key)
+              }}
+            />
+          </Tooltip>
+        ),
+      },
+      {
         title: 'Role',
         key: 'role',
         width: 320,
         sorter: (left, right) =>
           left.roleKind.localeCompare(right.roleKind) || left.roleName.localeCompare(right.roleName),
-        render: (_, row) => renderRoleLabel(row),
-      },
-      {
-        title: 'Namespace',
-        dataIndex: 'namespace',
-        key: 'namespace',
-        width: 180,
-        sorter: (left, right) => left.namespace.localeCompare(right.namespace),
+        render: (_, row) =>
+          renderRoleLabel({
+            row,
+            clusterId,
+            baseFactoriesMapping,
+            navigate,
+          }),
       },
       {
         title: 'Aggregated',
@@ -466,20 +851,33 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
       },
       {
         title: 'Accounts',
-        dataIndex: 'subjects',
-        key: 'subjects',
-        width: 420,
-        render: renderSubjects,
+        dataIndex: 'accountBindings',
+        key: 'accountBindings',
+        width: 640,
+        render: (_, row) =>
+          renderAccountBindings({
+            accountBindings: row.accountBindings,
+            clusterId,
+            baseFactoriesMapping,
+            navigate,
+            token,
+          }),
       },
       {
         title: 'Aggregators',
         dataIndex: 'aggregationSources',
         key: 'aggregationSources',
         width: 360,
-        render: renderAggregationSources,
+        render: (_, row) =>
+          renderAggregationSources({
+            sources: row.aggregationSources,
+            clusterId,
+            baseFactoriesMapping,
+            navigate,
+          }),
       },
     ],
-    [],
+    [baseFactoriesMapping, clusterId, navigate, token],
   )
 
   const handleSubmit = useCallback(() => {
@@ -490,6 +888,7 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
         setGraphData(data.graph)
         setStats(data.stats)
         setSelectedRowKey(null)
+        setScopeFilters([])
       },
       onError: error => {
         setGraphData(null)
@@ -507,6 +906,7 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
     setQueryErrorMessage(null)
     setSelectorSelection(EMPTY_SELECTOR_SELECTION)
     setSelectedRowKey(null)
+    setScopeFilters([])
   }, [])
 
   const nonResourceUrlsErrorMessage =
@@ -573,14 +973,11 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
       >
         <Table<TRoleTableRow>
           rowKey="key"
-          dataSource={rows}
+          dataSource={filteredRows}
           columns={columns}
           size="small"
           pagination={false}
-          scroll={{ x: 1200, y: tableScrollY }}
-          onRow={record => ({
-            onClick: () => setSelectedRowKey(record.key),
-          })}
+          scroll={{ x: 1800, y: tableScrollY }}
         />
       </Styled.TableContainer>
     )
@@ -647,10 +1044,39 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
 
         {stats && (
           <Styled.StatsBar>
-            <span>Roles: {stats.matchedRoles}</span>
-            <span>Bindings: {stats.matchedBindings}</span>
-            <span>Subjects: {stats.matchedSubjects}</span>
-            <span>Rows: {rows.length}</span>
+            <Styled.StatsMetrics>
+              <span>Roles: {stats.matchedRoles}</span>
+              <span>Bindings: {stats.matchedBindings}</span>
+              <span>Subjects: {stats.matchedSubjects}</span>
+              <span>Rows: {filteredRows.length}</span>
+            </Styled.StatsMetrics>
+
+            <Styled.ScopeFilters>
+              {scopeFilterItems.map(item => {
+                const active = scopeFilters.includes(item.scope)
+                const scopeStyle = getScopeTagStyle(item.scope, token)
+
+                return (
+                  <Styled.ScopeFilterButton
+                    key={item.scope}
+                    type="button"
+                    $active={active}
+                    $color={String(scopeStyle.color)}
+                    $background={String(scopeStyle.backgroundColor)}
+                    $border={String(scopeStyle.borderColor)}
+                    $text={token.colorText}
+                    onClick={() =>
+                      setScopeFilters(prev =>
+                        prev.includes(item.scope) ? prev.filter(scope => scope !== item.scope) : [...prev, item.scope],
+                      )
+                    }
+                  >
+                    {item.icon}
+                    <span>{`${item.label} ${item.count}`}</span>
+                  </Styled.ScopeFilterButton>
+                )
+              })}
+            </Styled.ScopeFilters>
           </Styled.StatsBar>
         )}
       </Styled.Chrome>
@@ -672,15 +1098,26 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
             <Descriptions size="small" bordered column={2} style={{ marginBottom: 16 }}>
               <Descriptions.Item label="Role">{`${selectedRow.roleKind}: ${selectedRow.roleName}`}</Descriptions.Item>
               <Descriptions.Item label="Namespace">{selectedRow.namespace}</Descriptions.Item>
-              <Descriptions.Item label="Accounts">{selectedRow.subjectsCount}</Descriptions.Item>
+              <Descriptions.Item label="Accounts">{selectedRow.accountBindings.length}</Descriptions.Item>
               <Descriptions.Item label="Aggregators">{selectedRow.aggregationSourcesCount}</Descriptions.Item>
               <Descriptions.Item label="Matched Rules">{selectedRow.matchedRuleCount}</Descriptions.Item>
               <Descriptions.Item label="Aggregated">{renderAggregated(selectedRow.aggregated)}</Descriptions.Item>
               <Descriptions.Item label="Account List" span={2}>
-                {renderSubjects(selectedRow.subjects)}
+                {renderAccountBindings({
+                  accountBindings: selectedRow.accountBindings,
+                  clusterId,
+                  baseFactoriesMapping,
+                  navigate,
+                  token,
+                })}
               </Descriptions.Item>
               <Descriptions.Item label="Aggregator Roles" span={2}>
-                {renderAggregationSources(selectedRow.aggregationSources)}
+                {renderAggregationSources({
+                  sources: selectedRow.aggregationSources,
+                  clusterId,
+                  baseFactoriesMapping,
+                  navigate,
+                })}
               </Descriptions.Item>
             </Descriptions>
 

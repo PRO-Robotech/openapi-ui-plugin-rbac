@@ -352,10 +352,24 @@ const ResourceLabel = styled.span`
   align-items: center;
   gap: 6px;
   min-width: 0;
+  max-width: 100%;
+  flex-shrink: 1;
 
   > span:last-child {
     min-width: 0;
-    word-break: break-all;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .ant-typography,
+  .ant-typography a,
+  a {
+    display: inline-block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 `
 

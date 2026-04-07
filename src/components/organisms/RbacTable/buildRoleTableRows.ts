@@ -15,6 +15,30 @@ export type TTableAggregationSource = {
   namespace?: string
 }
 
+export type TTableBinding = {
+  key: string
+  kind: Extract<TRbacNode['type'], 'RoleBinding' | 'ClusterRoleBinding'>
+  name: string
+  namespace?: string
+}
+
+export type TTableScope = 'cluster-wide' | 'narrowed' | 'same-ns' | 'cross-ns' | 'orphan'
+
+export type TTableRuleSummaryItem = {
+  key: string
+  label: string
+  tone: 'resource' | 'non-resource' | 'extra'
+}
+
+export type TTableAccountBinding = {
+  key: string
+  subject?: TTableSubject
+  binding?: TTableBinding
+  scope: TTableScope
+  ruleCount: number
+  ruleSummary: TTableRuleSummaryItem[]
+}
+
 export type TRoleTableRow = {
   key: string
   roleNodeId: string
@@ -25,6 +49,7 @@ export type TRoleTableRow = {
   matchedRuleCount: number
   subjectsCount: number
   subjects: TTableSubject[]
+  accountBindings: TTableAccountBinding[]
   aggregationSourcesCount: number
   aggregationSources: TTableAggregationSource[]
 }
@@ -35,6 +60,7 @@ const ROLE_SORT_ORDER: Record<TRoleTableRow['roleKind'], number> = {
 }
 
 const toSubjectKey = (node: TRbacNode) => `${node.type}:${node.namespace ?? ''}:${node.name}`
+const toBindingKey = (node: TRbacNode) => `${node.type}:${node.namespace ?? ''}:${node.name}`
 const toAggregationKey = (type: TRbacNode['type'], name: string, namespace?: string) =>
   `${type}:${namespace ?? ''}:${name}`
 
@@ -48,12 +74,97 @@ const sortAggregationSources = (left: TTableAggregationSource, right: TTableAggr
   (left.namespace ?? '').localeCompare(right.namespace ?? '') ||
   left.name.localeCompare(right.name)
 
+const sortAccountBindings = (left: TTableAccountBinding, right: TTableAccountBinding) =>
+  (left.subject?.kind ?? '').localeCompare(right.subject?.kind ?? '') ||
+  (left.subject?.namespace ?? '').localeCompare(right.subject?.namespace ?? '') ||
+  (left.subject?.name ?? '').localeCompare(right.subject?.name ?? '') ||
+  (left.binding?.kind ?? '').localeCompare(right.binding?.kind ?? '') ||
+  (left.binding?.namespace ?? '').localeCompare(right.binding?.namespace ?? '') ||
+  (left.binding?.name ?? '').localeCompare(right.binding?.name ?? '') ||
+  left.scope.localeCompare(right.scope)
+
+const buildRuleSummary = (node: TRbacNode): TTableRuleSummaryItem[] => {
+  const resourceLabels = new Set<string>()
+  const nonResourceLabels = new Set<string>()
+
+  ;(node.matchedRuleRefs ?? []).forEach(ruleRef => {
+    ;(ruleRef.resources ?? []).forEach(resource => {
+      if (resource.trim().length > 0) {
+        resourceLabels.add(resource)
+      }
+    })
+    ;(ruleRef.nonResourceURLs ?? []).forEach(url => {
+      if (url.trim().length > 0) {
+        nonResourceLabels.add(url)
+      }
+    })
+  })
+
+  const summaryItems = [
+    ...Array.from(resourceLabels)
+      .sort((left, right) => left.localeCompare(right))
+      .map<TTableRuleSummaryItem>(label => ({
+        key: `resource:${label}`,
+        label,
+        tone: 'resource',
+      })),
+    ...Array.from(nonResourceLabels)
+      .sort((left, right) => left.localeCompare(right))
+      .map<TTableRuleSummaryItem>(label => ({
+        key: `url:${label}`,
+        label,
+        tone: 'non-resource',
+      })),
+  ]
+  if (summaryItems.length <= 3) {
+    return summaryItems
+  }
+
+  return [
+    ...summaryItems.slice(0, 3),
+    {
+      key: `extra:${summaryItems.length - 3}`,
+      label: `+${summaryItems.length - 3}`,
+      tone: 'extra',
+    },
+  ]
+}
+
+const getAccountScope = ({
+  roleNode,
+  binding,
+  subject,
+}: {
+  roleNode: TRbacNode & { type: TRoleTableRow['roleKind'] }
+  binding?: TTableBinding
+  subject?: TTableSubject
+}): TTableScope => {
+  if (!binding) {
+    return 'orphan'
+  }
+
+  if (binding.kind === 'ClusterRoleBinding') {
+    return 'cluster-wide'
+  }
+
+  if (roleNode.type === 'ClusterRole') {
+    return 'narrowed'
+  }
+
+  if (subject?.kind === 'ServiceAccount') {
+    return subject.namespace === roleNode.namespace ? 'same-ns' : 'cross-ns'
+  }
+
+  return 'same-ns'
+}
+
 export const buildRoleTableRows = (graph: TGraph | null): TRoleTableRow[] => {
   if (!graph) return []
 
   const nodeById = new Map(graph.nodes.map(node => [node.id, node] as const))
   const subjectEdgesByBindingId = new Map<string, TRbacNode[]>()
   const subjectMapByRoleId = new Map<string, Map<string, TTableSubject>>()
+  const accountBindingsByRoleId = new Map<string, Map<string, TTableAccountBinding>>()
   const aggregationMapByRoleId = new Map<string, Map<string, TTableAggregationSource>>()
 
   graph.edges.forEach(edge => {
@@ -71,19 +182,57 @@ export const buildRoleTableRows = (graph: TGraph | null): TRoleTableRow[] => {
   graph.edges.forEach(edge => {
     if (edge.type !== 'grants') return
 
-    const roleNode = nodeById.get(edge.from)
-    if (!roleNode || !ROLE_NODE_TYPES.has(roleNode.type)) return
+    const roleNodeCandidate = nodeById.get(edge.from)
+    const bindingNode = nodeById.get(edge.to)
+    if (!roleNodeCandidate || !ROLE_NODE_TYPES.has(roleNodeCandidate.type)) return
 
+    const roleNode = roleNodeCandidate as TRbacNode & { type: TRoleTableRow['roleKind'] }
+
+    const binding =
+      bindingNode && (bindingNode.type === 'RoleBinding' || bindingNode.type === 'ClusterRoleBinding')
+        ? {
+            key: toBindingKey(bindingNode),
+            kind: bindingNode.type,
+            name: bindingNode.name,
+            namespace: bindingNode.namespace,
+          }
+        : undefined
+    const ruleSummary = buildRuleSummary(roleNode)
     const roleSubjects = subjectMapByRoleId.get(roleNode.id) ?? new Map<string, TTableSubject>()
-    ;(subjectEdgesByBindingId.get(edge.to) ?? []).forEach(subjectNode => {
-      roleSubjects.set(toSubjectKey(subjectNode), {
+    const roleAccountBindings = accountBindingsByRoleId.get(roleNode.id) ?? new Map<string, TTableAccountBinding>()
+    const subjectNodes = subjectEdgesByBindingId.get(edge.to) ?? []
+
+    subjectNodes.forEach(subjectNode => {
+      const subject = {
         key: toSubjectKey(subjectNode),
         kind: subjectNode.type as TTableSubject['kind'],
         name: subjectNode.name,
         namespace: subjectNode.namespace,
+      }
+
+      roleSubjects.set(subject.key, subject)
+      roleAccountBindings.set(`${subject.key}:${binding?.key ?? 'orphan'}`, {
+        key: `${subject.key}:${binding?.key ?? 'orphan'}`,
+        subject,
+        binding,
+        scope: getAccountScope({ roleNode, binding, subject }),
+        ruleCount: roleNode.matchedRuleRefs?.length ?? 0,
+        ruleSummary,
       })
     })
+
+    if (subjectNodes.length === 0) {
+      roleAccountBindings.set(`binding:${binding?.key ?? edge.to}`, {
+        key: `binding:${binding?.key ?? edge.to}`,
+        binding,
+        scope: getAccountScope({ roleNode, binding }),
+        ruleCount: roleNode.matchedRuleRefs?.length ?? 0,
+        ruleSummary,
+      })
+    }
+
     subjectMapByRoleId.set(roleNode.id, roleSubjects)
+    accountBindingsByRoleId.set(roleNode.id, roleAccountBindings)
   })
 
   graph.edges.forEach(edge => {
@@ -131,6 +280,19 @@ export const buildRoleTableRows = (graph: TGraph | null): TRoleTableRow[] => {
       })
 
       const subjects = Array.from(subjectMapByRoleId.get(node.id)?.values() ?? []).sort(sortSubjects)
+      const ruleSummary = buildRuleSummary(node)
+      const accountBindings = Array.from(accountBindingsByRoleId.get(node.id)?.values() ?? [])
+      const sortedAccountBindings =
+        accountBindings.length > 0
+          ? accountBindings.sort(sortAccountBindings)
+          : [
+              {
+                key: `orphan:${node.id}`,
+                scope: 'orphan' as const,
+                ruleCount: node.matchedRuleRefs?.length ?? 0,
+                ruleSummary,
+              },
+            ]
       const sortedAggregationSources = Array.from(aggregationSources.values()).sort(sortAggregationSources)
 
       return {
@@ -143,6 +305,7 @@ export const buildRoleTableRows = (graph: TGraph | null): TRoleTableRow[] => {
         matchedRuleCount: node.matchedRuleRefs?.length ?? 0,
         subjectsCount: subjects.length,
         subjects,
+        accountBindings: sortedAccountBindings,
         aggregationSourcesCount: sortedAggregationSources.length,
         aggregationSources: sortedAggregationSources,
       }
