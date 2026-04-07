@@ -6,12 +6,29 @@ import {
   CompressOutlined,
   EyeOutlined,
   GlobalOutlined,
+  SearchOutlined,
   WarningOutlined,
 } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
+import type { FilterDropdownProps } from 'antd/es/table/interface'
 import { useKindsRaw, useK8sSmartResource } from '@prorobotech/openapi-k8s-toolkit'
 import type { TNavigationResource } from '@prorobotech/openapi-k8s-toolkit'
-import { Alert, Button, Card, Descriptions, Empty, Modal, Spin, Table, Tag, Tooltip, Typography, theme } from 'antd'
+import {
+  Alert,
+  Button,
+  Card,
+  Descriptions,
+  Empty,
+  Input,
+  Modal,
+  Space,
+  Spin,
+  Table,
+  Tag,
+  Tooltip,
+  Typography,
+  theme,
+} from 'antd'
 import axios from 'axios'
 import { useNavigate } from 'react-router-dom'
 import { FOOTER_HEIGHT } from 'constants/blocksSizes'
@@ -65,9 +82,6 @@ const getQueryErrorMessage = (error: unknown) => {
   return 'Query execution failed.'
 }
 
-const renderAggregated = (value: boolean) =>
-  value ? <Tag color="orange">yes</Tag> : <Typography.Text type="secondary">no</Typography.Text>
-
 const MIN_TABLE_HEIGHT = 320
 const TABLE_SCROLL_RESERVED_HEIGHT = 56
 
@@ -75,6 +89,27 @@ const formatSubjectLabel = ({ name }: TTableSubject) => name
 
 const formatAggregationSourceLabel = ({ name, namespace }: TTableAggregationSource) =>
   namespace ? `${namespace}/${name}` : name
+
+const getAccountBindingsSearchText = (accountBindings: TTableAccountBinding[]) =>
+  accountBindings
+    .flatMap(accountBinding => [
+      accountBinding.subject?.kind,
+      accountBinding.subject?.name,
+      accountBinding.subject?.namespace,
+      accountBinding.binding?.kind,
+      accountBinding.binding?.name,
+      accountBinding.binding?.namespace,
+      accountBinding.scope,
+    ])
+    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    .join(' ')
+    .toLowerCase()
+
+const getRoleSearchText = (row: TRoleTableRow) =>
+  [row.roleKind, row.roleName, row.namespace]
+    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    .join(' ')
+    .toLowerCase()
 
 const getScopeTagStyle = (
   scope: TTableScope,
@@ -357,42 +392,46 @@ const renderAggregationSources = ({
   clusterId,
   baseFactoriesMapping,
   navigate,
+  stacked = false,
 }: {
   sources: TTableAggregationSource[]
   clusterId: string
   baseFactoriesMapping?: Record<string, string>
   navigate: ReturnType<typeof useNavigate>
+  stacked?: boolean
 }) => {
   if (sources.length === 0) {
     return <Typography.Text type="secondary">-</Typography.Text>
   }
 
-  return (
-    <Styled.ResourceList>
-      {sources.map(source => (
-        <Styled.ResourceListItem key={source.key}>
-          <LinkedResourceLabel
-            badgeId={`rbac-table-aggregator-${source.key}`}
-            value={formatAggregationSourceLabel(source)}
-            badgeValue={source.type}
-            href={
-              source.type === 'Role' || source.type === 'ClusterRole'
-                ? getRbacResourceHref({
-                    clusterId,
-                    node: {
-                      type: source.type,
-                      name: source.name,
-                      namespace: source.namespace,
-                    },
-                    baseFactoriesMapping,
-                  })
-                : undefined
-            }
-            navigate={navigate}
-          />
-        </Styled.ResourceListItem>
-      ))}
-    </Styled.ResourceList>
+  const content = sources.map(source => (
+    <Styled.ResourceListItem key={source.key}>
+      <LinkedResourceLabel
+        badgeId={`rbac-table-aggregator-${source.key}`}
+        value={formatAggregationSourceLabel(source)}
+        badgeValue={source.type}
+        href={
+          source.type === 'Role' || source.type === 'ClusterRole'
+            ? getRbacResourceHref({
+                clusterId,
+                node: {
+                  type: source.type,
+                  name: source.name,
+                  namespace: source.namespace,
+                },
+                baseFactoriesMapping,
+              })
+            : undefined
+        }
+        navigate={navigate}
+      />
+    </Styled.ResourceListItem>
+  ))
+
+  return stacked ? (
+    <Styled.ResourceStack>{content}</Styled.ResourceStack>
+  ) : (
+    <Styled.ResourceList>{content}</Styled.ResourceList>
   )
 }
 
@@ -428,8 +467,11 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
   const [queryErrorMessage, setQueryErrorMessage] = useState<string | null>(null)
   const [selectorSelection, setSelectorSelection] = useState<TSelectorSelection>(EMPTY_SELECTOR_SELECTION)
   const [selectedRowKey, setSelectedRowKey] = useState<string | null>(null)
+  const [selectedAggregatorRowKey, setSelectedAggregatorRowKey] = useState<string | null>(null)
   const [tableHeight, setTableHeight] = useState(MIN_TABLE_HEIGHT)
   const [scopeFilters, setScopeFilters] = useState<TTableScope[]>([])
+  const [roleColumnFilter, setRoleColumnFilter] = useState<string[]>([])
+  const [accountColumnFilter, setAccountColumnFilter] = useState<string[]>([])
 
   const queryMutation = useRbacGraphQuery(clusterId)
 
@@ -779,6 +821,10 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
     () => filteredRows.find(row => row.key === selectedRowKey) ?? null,
     [filteredRows, selectedRowKey],
   )
+  const selectedAggregatorRow = useMemo(
+    () => filteredRows.find(row => row.key === selectedAggregatorRowKey) ?? null,
+    [filteredRows, selectedAggregatorRowKey],
+  )
   const nodeById = useMemo(() => new Map(graphData?.nodes.map(node => [node.id, node] as const) ?? []), [graphData])
   const selectedNode = useMemo(() => {
     if (!selectedRow) return null
@@ -798,6 +844,88 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
     wildcardMode: payload.spec.wildcardMode,
     filterPhantomAPIs: payload.spec.filterPhantomAPIs,
   })
+  const renderAccountsFilterDropdown = useCallback(
+    ({ setSelectedKeys, selectedKeys, confirm, clearFilters, close }: FilterDropdownProps) => (
+      <div style={{ padding: 8 }} onKeyDown={event => event.stopPropagation()}>
+        <Input
+          placeholder="search accounts"
+          value={selectedKeys[0]}
+          onChange={event => {
+            const nextValue = event.target.value
+            const nextKeys = nextValue ? [nextValue] : []
+
+            setSelectedKeys(nextKeys)
+            setAccountColumnFilter(nextKeys as string[])
+            confirm({ closeDropdown: false })
+          }}
+          onPressEnter={() => confirm({ closeDropdown: true })}
+          style={{ marginBottom: 8, display: 'block' }}
+        />
+        <Space>
+          <Button
+            size="small"
+            style={{ width: 90 }}
+            onClick={() => {
+              clearFilters?.()
+              setAccountColumnFilter([])
+              confirm({ closeDropdown: false })
+            }}
+          >
+            Reset
+          </Button>
+          <Button type="link" size="small" onClick={() => close()}>
+            close
+          </Button>
+        </Space>
+      </div>
+    ),
+    [],
+  )
+  const renderAccountsFilterIcon = useCallback(
+    (filtered: boolean) => <SearchOutlined style={{ color: filtered ? token.colorPrimary : undefined }} />,
+    [token.colorPrimary],
+  )
+  const renderRoleFilterDropdown = useCallback(
+    ({ setSelectedKeys, selectedKeys, confirm, clearFilters, close }: FilterDropdownProps) => (
+      <div style={{ padding: 8 }} onKeyDown={event => event.stopPropagation()}>
+        <Input
+          placeholder="search roles"
+          value={selectedKeys[0]}
+          onChange={event => {
+            const nextValue = event.target.value
+            const nextKeys = nextValue ? [nextValue] : []
+
+            setSelectedKeys(nextKeys)
+            setRoleColumnFilter(nextKeys as string[])
+            confirm({ closeDropdown: false })
+          }}
+          onPressEnter={() => confirm({ closeDropdown: true })}
+          style={{ marginBottom: 8, display: 'block' }}
+        />
+        <Space>
+          <Button
+            size="small"
+            style={{ width: 90 }}
+            onClick={() => {
+              clearFilters?.()
+              setRoleColumnFilter([])
+              confirm({ closeDropdown: false })
+            }}
+          >
+            Reset
+          </Button>
+          <Button type="link" size="small" onClick={() => close()}>
+            close
+          </Button>
+        </Space>
+      </div>
+    ),
+    [],
+  )
+  const renderRoleFilterIcon = useCallback(
+    (filtered: boolean) => <SearchOutlined style={{ color: filtered ? token.colorPrimary : undefined }} />,
+    [token.colorPrimary],
+  )
 
   const columns = useMemo<ColumnsType<TRoleTableRow>>(
     () => [
@@ -824,6 +952,10 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
         title: 'Role',
         key: 'role',
         width: 320,
+        filteredValue: roleColumnFilter,
+        filterDropdown: renderRoleFilterDropdown,
+        filterIcon: renderRoleFilterIcon,
+        onFilter: (value, record) => getRoleSearchText(record).includes(String(value).toLowerCase()),
         sorter: (left, right) =>
           left.roleKind.localeCompare(right.roleKind) || left.roleName.localeCompare(right.roleName),
         render: (_, row) =>
@@ -840,7 +972,28 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
         key: 'aggregated',
         width: 120,
         sorter: (left, right) => Number(left.aggregated) - Number(right.aggregated),
-        render: renderAggregated,
+        render: (_, row) => {
+          if (!row.aggregated) {
+            return <Typography.Text type="secondary">no</Typography.Text>
+          }
+
+          const tag = <Tag color="green">yes</Tag>
+          if (row.aggregationSourcesCount === 0) {
+            return tag
+          }
+
+          return (
+            <Typography.Link
+              onClick={event => {
+                event.preventDefault()
+                event.stopPropagation()
+                setSelectedAggregatorRowKey(row.key)
+              }}
+            >
+              {tag}
+            </Typography.Link>
+          )
+        },
       },
       {
         title: 'Matched Rules',
@@ -854,6 +1007,11 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
         dataIndex: 'accountBindings',
         key: 'accountBindings',
         width: 640,
+        filteredValue: accountColumnFilter,
+        filterDropdown: renderAccountsFilterDropdown,
+        filterIcon: renderAccountsFilterIcon,
+        onFilter: (value, record) =>
+          getAccountBindingsSearchText(record.accountBindings).includes(String(value).toLowerCase()),
         render: (_, row) =>
           renderAccountBindings({
             accountBindings: row.accountBindings,
@@ -863,21 +1021,19 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
             token,
           }),
       },
-      {
-        title: 'Aggregators',
-        dataIndex: 'aggregationSources',
-        key: 'aggregationSources',
-        width: 360,
-        render: (_, row) =>
-          renderAggregationSources({
-            sources: row.aggregationSources,
-            clusterId,
-            baseFactoriesMapping,
-            navigate,
-          }),
-      },
     ],
-    [baseFactoriesMapping, clusterId, navigate, token],
+    [
+      accountColumnFilter,
+      baseFactoriesMapping,
+      clusterId,
+      navigate,
+      renderRoleFilterDropdown,
+      renderRoleFilterIcon,
+      renderAccountsFilterDropdown,
+      renderAccountsFilterIcon,
+      roleColumnFilter,
+      token,
+    ],
   )
 
   const handleSubmit = useCallback(() => {
@@ -888,12 +1044,16 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
         setGraphData(data.graph)
         setStats(data.stats)
         setSelectedRowKey(null)
+        setSelectedAggregatorRowKey(null)
         setScopeFilters([])
+        setRoleColumnFilter([])
+        setAccountColumnFilter([])
       },
       onError: error => {
         setGraphData(null)
         setStats(undefined)
         setSelectedRowKey(null)
+        setSelectedAggregatorRowKey(null)
         setQueryErrorMessage(getQueryErrorMessage(error))
       },
     })
@@ -906,7 +1066,10 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
     setQueryErrorMessage(null)
     setSelectorSelection(EMPTY_SELECTOR_SELECTION)
     setSelectedRowKey(null)
+    setSelectedAggregatorRowKey(null)
     setScopeFilters([])
+    setRoleColumnFilter([])
+    setAccountColumnFilter([])
   }, [])
 
   const nonResourceUrlsErrorMessage =
@@ -1007,6 +1170,38 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
 
     return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No role details were returned." />
   })()
+  const aggregatorModalContent = (() => {
+    if (!selectedAggregatorRow) {
+      return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No row is selected." />
+    }
+
+    if (selectedAggregatorRow.aggregationSources.length === 0) {
+      return (
+        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No aggregation sources were found for this role." />
+      )
+    }
+
+    return (
+      <div>
+        <Descriptions size="small" bordered column={2} style={{ marginBottom: 16 }}>
+          <Descriptions.Item label="Role">{`${selectedAggregatorRow.roleKind}: ${selectedAggregatorRow.roleName}`}</Descriptions.Item>
+          <Descriptions.Item label="Namespace">{selectedAggregatorRow.namespace}</Descriptions.Item>
+          <Descriptions.Item label="Aggregators">{selectedAggregatorRow.aggregationSourcesCount}</Descriptions.Item>
+          <Descriptions.Item label="Aggregated">
+            <Tag color="green">yes</Tag>
+          </Descriptions.Item>
+        </Descriptions>
+
+        {renderAggregationSources({
+          sources: selectedAggregatorRow.aggregationSources,
+          clusterId,
+          baseFactoriesMapping,
+          navigate,
+          stacked: true,
+        })}
+      </div>
+    )
+  })()
 
   return (
     <Styled.Container ref={containerRef}>
@@ -1101,7 +1296,13 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
               <Descriptions.Item label="Accounts">{selectedRow.accountBindings.length}</Descriptions.Item>
               <Descriptions.Item label="Aggregators">{selectedRow.aggregationSourcesCount}</Descriptions.Item>
               <Descriptions.Item label="Matched Rules">{selectedRow.matchedRuleCount}</Descriptions.Item>
-              <Descriptions.Item label="Aggregated">{renderAggregated(selectedRow.aggregated)}</Descriptions.Item>
+              <Descriptions.Item label="Aggregated">
+                {selectedRow.aggregated ? (
+                  <Tag color="green">yes</Tag>
+                ) : (
+                  <Typography.Text type="secondary">no</Typography.Text>
+                )}
+              </Descriptions.Item>
               <Descriptions.Item label="Account List" span={2}>
                 {renderAccountBindings({
                   accountBindings: selectedRow.accountBindings,
@@ -1109,14 +1310,6 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
                   baseFactoriesMapping,
                   navigate,
                   token,
-                })}
-              </Descriptions.Item>
-              <Descriptions.Item label="Aggregator Roles" span={2}>
-                {renderAggregationSources({
-                  sources: selectedRow.aggregationSources,
-                  clusterId,
-                  baseFactoriesMapping,
-                  navigate,
                 })}
               </Descriptions.Item>
             </Descriptions>
@@ -1129,6 +1322,17 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
             )}
           </>
         )}
+      </Modal>
+      <Modal
+        open={Boolean(selectedAggregatorRow)}
+        onCancel={() => setSelectedAggregatorRowKey(null)}
+        footer={null}
+        width={900}
+        centered
+        destroyOnHidden
+        title={selectedAggregatorRow ? `Aggregators: ${selectedAggregatorRow.roleName}` : 'RBAC aggregators'}
+      >
+        {aggregatorModalContent}
       </Modal>
     </Styled.Container>
   )

@@ -120,10 +120,6 @@ const TableContainer = styled.div<TTableContainerProps>`
 
   /* stylelint-disable selector-no-qualifying-type */
 
-  .ant-table-tbody > tr.ant-table-row {
-    cursor: pointer;
-  }
-
   .ant-table-tbody > tr.ant-table-row:hover > td {
     background: ${({ $colorBgContainer }) => $colorBgContainer};
   }
@@ -161,6 +157,13 @@ const ResourceList = styled.div`
 `
 
 const ResourceListItem = styled.div`
+  min-width: 0;
+`
+
+const ResourceStack = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   min-width: 0;
 `
 
@@ -252,6 +255,7 @@ export const Styled = {
   SpinContainer,
   ResourceList,
   ResourceListItem,
+  ResourceStack,
   AccountBindingList,
   AccountBindingRow,
   AccountBindingSection,
