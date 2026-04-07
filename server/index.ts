@@ -11,11 +11,6 @@ dotenv.config()
 
 const basePrefix = process.env.BASEPREFIX
 const allowedOrigins = process.env.CORS_ALLOWED_ORIGINS?.split(',').map(origin => origin.trim())
-const baseFactoryNamespacedApiKey = process.env.BASE_FACTORY_NAMESPACED_API_KEY
-const baseFactoryClusterscopedApiKey = process.env.BASE_FACTORY_CLUSTERSCOPED_API_KEY
-const baseFactoryNamespacedBuiltinKey = process.env.BASE_FACTORY_NAMESPACED_BUILTIN_KEY
-const baseFactoryClusterscopedBuiltinKey = process.env.BASE_FACTORY_CLUSTERSCOPED_BUILTIN_KEY
-const baseNamespaceFactoryKey = process.env.BASE_NAMESPACE_FACTORY_KEY
 
 // let options: dotenv.DotenvParseOutput | undefined
 // if (process.env.LOCAL === 'true') {
@@ -141,16 +136,7 @@ app.get(`${basePrefix ? basePrefix : ''}/env.js`, (_, res) => {
   res.send(
     `
     window._env_ = {
-    ${basePrefix ? `  BASEPREFIX: "${basePrefix}",` : ''}
-    ${baseFactoryNamespacedApiKey ? `  BASE_FACTORY_NAMESPACED_API_KEY: "${baseFactoryNamespacedApiKey}",` : ''}
-    ${baseFactoryClusterscopedApiKey ? `  BASE_FACTORY_CLUSTERSCOPED_API_KEY: "${baseFactoryClusterscopedApiKey}",` : ''}
-    ${baseFactoryNamespacedBuiltinKey ? `  BASE_FACTORY_NAMESPACED_BUILTIN_KEY: "${baseFactoryNamespacedBuiltinKey}",` : ''}
-    ${
-      baseFactoryClusterscopedBuiltinKey
-        ? `  BASE_FACTORY_CLUSTERSCOPED_BUILTIN_KEY: "${baseFactoryClusterscopedBuiltinKey}",`
-        : ''
-    }
-    ${baseNamespaceFactoryKey ? `  BASE_NAMESPACE_FACTORY_KEY: "${baseNamespaceFactoryKey}"` : ''}
+    ${basePrefix ? `  BASEPREFIX: "${basePrefix}"` : ''}
     }
     `,
   )
