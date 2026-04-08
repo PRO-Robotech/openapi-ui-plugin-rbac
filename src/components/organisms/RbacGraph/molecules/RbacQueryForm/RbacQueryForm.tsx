@@ -1,5 +1,5 @@
 /* eslint-disable max-lines-per-function */
-import React, { FC, ReactNode, useCallback, useMemo, useState } from 'react'
+import React, { FC, ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import {
   AppstoreOutlined,
   ClearOutlined,
@@ -81,6 +81,7 @@ type TRbacQueryFormProps = {
   onSubmit: () => void
   onReset: () => void
   loading: boolean
+  collapseSignal?: number
 }
 
 export const RbacQueryForm: FC<TRbacQueryFormProps> = ({
@@ -92,6 +93,7 @@ export const RbacQueryForm: FC<TRbacQueryFormProps> = ({
   onSubmit,
   onReset,
   loading,
+  collapseSignal = 0,
 }) => {
   const { token } = theme.useToken()
   const { spec } = value
@@ -113,6 +115,12 @@ export const RbacQueryForm: FC<TRbacQueryFormProps> = ({
     },
     [normalizeActiveKeys],
   )
+
+  useEffect(() => {
+    if (collapseSignal > 0) {
+      setActiveSectionKeys([])
+    }
+  }, [collapseSignal])
 
   const sectionLabelOptions = useMemo<TSectionLabelOptions>(
     () => ({

@@ -1,3 +1,4 @@
+/* eslint-disable no-underscore-dangle */
 const DEFAULT_FACTORY_CONFIG = {
   BASE_FACTORY_NAMESPACED_API_KEY: 'base-factory-namespaced-api',
   BASE_FACTORY_CLUSTERSCOPED_API_KEY: 'base-factory-clusterscoped-api',
@@ -8,8 +9,7 @@ const DEFAULT_FACTORY_CONFIG = {
 
 export const OPENAPI_UI_BASEPREFIX = '/openapi-ui'
 
-const getWindowEnv = (): Record<string, string | undefined> =>
-  typeof window === 'undefined' ? {} : window._env_ ?? {}
+const getWindowEnv = (): Record<string, string | undefined> => (typeof window === 'undefined' ? {} : window._env_ ?? {})
 
 export const getRuntimeFactoryConfig = () => {
   const env = getWindowEnv()

@@ -362,6 +362,8 @@ const ResourceLabel = styled.span`
     white-space: nowrap;
   }
 
+  /* stylelint-disable no-descending-specificity */
+
   .ant-typography,
   .ant-typography a,
   a {

@@ -6,14 +6,31 @@ import {
   CompressOutlined,
   EyeOutlined,
   GlobalOutlined,
+  SearchOutlined,
   WarningOutlined,
 } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
+import type { FilterDropdownProps } from 'antd/es/table/interface'
 import { useKindsRaw, useK8sSmartResource } from '@prorobotech/openapi-k8s-toolkit'
 import type { TNavigationResource } from '@prorobotech/openapi-k8s-toolkit'
-import { Alert, Button, Card, Descriptions, Empty, Modal, Spin, Table, Tag, Tooltip, Typography, theme } from 'antd'
+import {
+  Alert,
+  Button,
+  Card,
+  Descriptions,
+  Empty,
+  Input,
+  Modal,
+  Space,
+  Spin,
+  Table,
+  Tag,
+  Tooltip,
+  Typography,
+  theme,
+} from 'antd'
 import axios from 'axios'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { FOOTER_HEIGHT } from 'constants/blocksSizes'
 import type {
   TRbacNode,
@@ -28,7 +45,7 @@ import { useRbacGraphQuery } from 'hooks/useRbacGraphQuery'
 import { useRbacRoleDetailsQuery } from 'hooks/useRbacRoleDetailsQuery'
 import { RbacResourceLabel } from 'components/organisms/RbacGraph/atoms/RbacResourceLabel'
 import { RbacQueryForm, RbacRoleDetailsModalContent } from 'components/organisms/RbacGraph/molecules'
-import { DEFAULT_PAYLOAD, EMPTY_SELECTOR_SELECTION, ROLE_NODE_TYPES } from 'components/organisms/RbacGraph/constants'
+import { ROLE_NODE_TYPES } from 'components/organisms/RbacGraph/constants'
 import { hasWildcard, toSortedOptions } from 'components/organisms/RbacGraph/utils'
 import { getNavigationBaseFactoriesMapping, getRbacResourceHref, RBAC_NAVIGATION_QUERY } from 'utils/rbacResourceLink'
 import {
@@ -39,9 +56,19 @@ import {
   type TTableScope,
   type TTableSubject,
 } from './buildRoleTableRows'
+import {
+  areRbacTableSearchStatesEqual,
+  createDefaultRbacTableSearchState,
+  hasAnyRbacTableSearchState,
+  normalizeRbacTableSearchState,
+  parseRbacTableSearchParams,
+  serializeRbacTableSearchParams,
+  type TRbacTableSearchState,
+  type TRbacTableSelectorSelection,
+} from './searchParams'
 import { Styled } from './styled'
 
-type TSelectorSelection = typeof EMPTY_SELECTOR_SELECTION
+type TSelectorSelection = TRbacTableSelectorSelection
 type TScopeFilterItem = {
   scope: TTableScope
   label: string
@@ -65,9 +92,6 @@ const getQueryErrorMessage = (error: unknown) => {
   return 'Query execution failed.'
 }
 
-const renderAggregated = (value: boolean) =>
-  value ? <Tag color="orange">yes</Tag> : <Typography.Text type="secondary">no</Typography.Text>
-
 const MIN_TABLE_HEIGHT = 320
 const TABLE_SCROLL_RESERVED_HEIGHT = 56
 
@@ -75,6 +99,27 @@ const formatSubjectLabel = ({ name }: TTableSubject) => name
 
 const formatAggregationSourceLabel = ({ name, namespace }: TTableAggregationSource) =>
   namespace ? `${namespace}/${name}` : name
+
+const getAccountBindingsSearchText = (accountBindings: TTableAccountBinding[]) =>
+  accountBindings
+    .flatMap(accountBinding => [
+      accountBinding.subject?.kind,
+      accountBinding.subject?.name,
+      accountBinding.subject?.namespace,
+      accountBinding.binding?.kind,
+      accountBinding.binding?.name,
+      accountBinding.binding?.namespace,
+      accountBinding.scope,
+    ])
+    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    .join(' ')
+    .toLowerCase()
+
+const getRoleSearchText = (row: TRoleTableRow) =>
+  [row.roleKind, row.roleName, row.namespace]
+    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    .join(' ')
+    .toLowerCase()
 
 const getScopeTagStyle = (
   scope: TTableScope,
@@ -357,42 +402,46 @@ const renderAggregationSources = ({
   clusterId,
   baseFactoriesMapping,
   navigate,
+  stacked = false,
 }: {
   sources: TTableAggregationSource[]
   clusterId: string
   baseFactoriesMapping?: Record<string, string>
   navigate: ReturnType<typeof useNavigate>
+  stacked?: boolean
 }) => {
   if (sources.length === 0) {
     return <Typography.Text type="secondary">-</Typography.Text>
   }
 
-  return (
-    <Styled.ResourceList>
-      {sources.map(source => (
-        <Styled.ResourceListItem key={source.key}>
-          <LinkedResourceLabel
-            badgeId={`rbac-table-aggregator-${source.key}`}
-            value={formatAggregationSourceLabel(source)}
-            badgeValue={source.type}
-            href={
-              source.type === 'Role' || source.type === 'ClusterRole'
-                ? getRbacResourceHref({
-                    clusterId,
-                    node: {
-                      type: source.type,
-                      name: source.name,
-                      namespace: source.namespace,
-                    },
-                    baseFactoriesMapping,
-                  })
-                : undefined
-            }
-            navigate={navigate}
-          />
-        </Styled.ResourceListItem>
-      ))}
-    </Styled.ResourceList>
+  const content = sources.map(source => (
+    <Styled.ResourceListItem key={source.key}>
+      <LinkedResourceLabel
+        badgeId={`rbac-table-aggregator-${source.key}`}
+        value={formatAggregationSourceLabel(source)}
+        badgeValue={source.type}
+        href={
+          source.type === 'Role' || source.type === 'ClusterRole'
+            ? getRbacResourceHref({
+                clusterId,
+                node: {
+                  type: source.type,
+                  name: source.name,
+                  namespace: source.namespace,
+                },
+                baseFactoriesMapping,
+              })
+            : undefined
+        }
+        navigate={navigate}
+      />
+    </Styled.ResourceListItem>
+  ))
+
+  return stacked ? (
+    <Styled.ResourceStack>{content}</Styled.ResourceStack>
+  ) : (
+    <Styled.ResourceList>{content}</Styled.ResourceList>
   )
 }
 
@@ -419,17 +468,33 @@ const getRoleDetailsToken = (token: ReturnType<typeof theme.useToken>['token']) 
 
 export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { token } = theme.useToken()
   const containerRef = useRef<HTMLDivElement | null>(null)
   const chromeRef = useRef<HTMLDivElement | null>(null)
-  const [payload, setPayload] = useState<TRbacQueryPayload>(DEFAULT_PAYLOAD)
+  const initialSearchStateRef = useRef<TRbacTableSearchState>()
+  const appliedSearchParamsRef = useRef(searchParams.toString())
+  const autoSubmitAttemptedRef = useRef(false)
+
+  if (!initialSearchStateRef.current) {
+    initialSearchStateRef.current = normalizeRbacTableSearchState(parseRbacTableSearchParams(searchParams))
+  }
+
+  const initialSearchState = initialSearchStateRef.current
+  const [payload, setPayload] = useState<TRbacQueryPayload>(() => initialSearchState.payload)
   const [graphData, setGraphData] = useState<TGraph | null>(null)
   const [stats, setStats] = useState<TRbacQueryResponse['stats']>()
   const [queryErrorMessage, setQueryErrorMessage] = useState<string | null>(null)
-  const [selectorSelection, setSelectorSelection] = useState<TSelectorSelection>(EMPTY_SELECTOR_SELECTION)
+  const [selectorSelection, setSelectorSelection] = useState<TSelectorSelection>(
+    () => initialSearchState.selectorSelection,
+  )
   const [selectedRowKey, setSelectedRowKey] = useState<string | null>(null)
+  const [selectedAggregatorRowKey, setSelectedAggregatorRowKey] = useState<string | null>(null)
   const [tableHeight, setTableHeight] = useState(MIN_TABLE_HEIGHT)
-  const [scopeFilters, setScopeFilters] = useState<TTableScope[]>([])
+  const [scopeFilters, setScopeFilters] = useState<TTableScope[]>(() => initialSearchState.scopeFilters)
+  const [roleColumnFilter, setRoleColumnFilter] = useState<string[]>(() => initialSearchState.roleColumnFilter)
+  const [accountColumnFilter, setAccountColumnFilter] = useState<string[]>(() => initialSearchState.accountColumnFilter)
+  const [collapseSignal, setCollapseSignal] = useState(0)
 
   const queryMutation = useRbacGraphQuery(clusterId)
 
@@ -464,6 +529,9 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
   })
 
   const baseFactoriesMapping = useMemo(() => getNavigationBaseFactoriesMapping(navigationData), [navigationData])
+  const selectorMetadataSettled = !kindsLoading && !nonResourceUrlsLoading
+  const canApplySelectorConstraints =
+    kindsData?.kindsWithVersion !== undefined && nonResourceUrlsData?.items !== undefined
 
   const hasResourceFilters = Boolean(
     selectorSelection.apiGroups.length || selectorSelection.resources.length || selectorSelection.resourceNames.length,
@@ -585,132 +653,75 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
     ],
   )
 
+  const searchNormalizationOptions = useMemo(
+    () =>
+      canApplySelectorConstraints
+        ? {
+            collectResourceOptions: selectorRelations.collectResourceOptions,
+            collectNonResourceOptions: selectorRelations.collectNonResourceOptions,
+          }
+        : {},
+    [canApplySelectorConstraints, selectorRelations],
+  )
+
+  const currentSearchState = useMemo<TRbacTableSearchState>(
+    () => ({
+      payload,
+      selectorSelection,
+      scopeFilters,
+      roleColumnFilter,
+      accountColumnFilter,
+    }),
+    [accountColumnFilter, payload, roleColumnFilter, scopeFilters, selectorSelection],
+  )
+  const normalizedSearchState = useMemo(
+    () => normalizeRbacTableSearchState(currentSearchState, searchNormalizationOptions),
+    [currentSearchState, searchNormalizationOptions],
+  )
+  const canonicalSearchParams = useMemo(
+    () => serializeRbacTableSearchParams(normalizedSearchState, searchNormalizationOptions).toString(),
+    [normalizedSearchState, searchNormalizationOptions],
+  )
+
+  const applySearchState = useCallback((nextState: TRbacTableSearchState) => {
+    setPayload(nextState.payload)
+    setSelectorSelection(nextState.selectorSelection)
+    setScopeFilters(nextState.scopeFilters)
+    setRoleColumnFilter(nextState.roleColumnFilter)
+    setAccountColumnFilter(nextState.accountColumnFilter)
+  }, [])
+
   const handleSelectorChange = useCallback(
     (sel: TSelectorSelection, changedKey?: keyof TSelectorSelection) => {
-      const isResourceSelector =
-        changedKey === 'apiGroups' || changedKey === 'resources' || changedKey === 'resourceNames'
-      const activatedResourceSelection =
-        changedKey !== undefined && isResourceSelector && Array.isArray(sel[changedKey]) && sel[changedKey].length > 0
-      const activatedNonResourceSelection = changedKey === 'nonResourceURLs' && sel.nonResourceURLs.length > 0
-
-      const selectionWithExclusiveMode = {
-        ...sel,
-        ...(activatedResourceSelection ? { nonResourceURLs: [] } : {}),
-        ...(activatedNonResourceSelection ? { apiGroups: [], resources: [], resourceNames: [] } : {}),
-      }
-
-      const nextApiGroups = selectionWithExclusiveMode.apiGroups.filter(group =>
-        selectorRelations.collectResourceOptions(selectionWithExclusiveMode, 'apiGroups').apiGroups.has(group),
-      )
-      const nextResources = selectionWithExclusiveMode.resources.filter(resource =>
-        selectorRelations
-          .collectResourceOptions(
-            {
-              ...selectionWithExclusiveMode,
-              apiGroups: nextApiGroups,
+      applySearchState(
+        normalizeRbacTableSearchState(
+          {
+            ...currentSearchState,
+            selectorSelection: sel,
+            payload: {
+              spec: {
+                ...payload.spec,
+                selector: sel,
+              },
             },
-            'resources',
-          )
-          .resources.has(resource),
-      )
-      const nextResourceNames = selectionWithExclusiveMode.resourceNames
-      const nextHasResourceFilters = Boolean(nextApiGroups.length || nextResources.length || nextResourceNames.length)
-      const nextHasNonResourceFilters = Boolean(selectionWithExclusiveMode.nonResourceURLs.length)
-      const allowedVerbs = new Set<string>()
-      const resourceVerbs = selectorRelations.collectResourceOptions(
-        {
-          ...selectionWithExclusiveMode,
-          apiGroups: nextApiGroups,
-          resources: nextResources,
-        },
-        'verbs',
-      ).verbs
-      const nonResourceVerbs = selectorRelations.collectNonResourceOptions(
-        { ...selectionWithExclusiveMode },
-        'verbs',
-      ).verbs
-
-      if (nextHasResourceFilters || !nextHasNonResourceFilters) {
-        resourceVerbs.forEach(verb => allowedVerbs.add(verb))
-      }
-
-      if (nextHasNonResourceFilters || !nextHasResourceFilters) {
-        nonResourceVerbs.forEach(verb => allowedVerbs.add(verb))
-      }
-
-      const nextVerbs = selectionWithExclusiveMode.verbs.filter(verb => allowedVerbs.has(verb))
-      const nextNonResourceURLs = selectionWithExclusiveMode.nonResourceURLs.filter(nonResourceURL =>
-        selectorRelations
-          .collectNonResourceOptions(
-            {
-              nonResourceURLs: selectionWithExclusiveMode.nonResourceURLs,
-              verbs: nextVerbs,
-            },
-            'nonResourceURLs',
-          )
-          .nonResourceURLs.has(nonResourceURL),
-      )
-      const nextSelection = {
-        ...sel,
-        apiGroups: nextApiGroups,
-        resources: nextResources,
-        resourceNames: nextResourceNames,
-        verbs: nextVerbs,
-        nonResourceURLs: nextNonResourceURLs,
-      }
-
-      setSelectorSelection(nextSelection)
-      setPayload(prev => ({
-        spec: {
-          ...prev.spec,
-          selector: {
-            ...prev.spec.selector,
-            verbs: nextSelection.verbs,
-            apiGroups: nextSelection.apiGroups,
-            resources: nextSelection.resources,
-            resourceNames: nextSelection.resourceNames,
-            nonResourceURLs: nextSelection.nonResourceURLs,
           },
-        },
-      }))
+          {
+            ...searchNormalizationOptions,
+            changedKey,
+          },
+        ),
+      )
     },
-    [selectorRelations],
+    [applySearchState, currentSearchState, payload.spec, searchNormalizationOptions],
   )
 
   useEffect(() => {
-    if (!kindsData?.kindsWithVersion) return
+    if (!canApplySelectorConstraints) return
 
-    const normalizedSelection = {
-      ...selectorSelection,
-      apiGroups: selectorSelection.apiGroups.filter(group => selectorConstraints.allowedGroups.has(group)),
-      resources: selectorSelection.resources.filter(resource => selectorConstraints.allowedResources.has(resource)),
-      verbs: selectorSelection.verbs.filter(verb => selectorConstraints.allowedVerbs.has(verb)),
-      resourceNames: selectorSelection.resourceNames,
-      nonResourceURLs: selectorSelection.nonResourceURLs.filter(nonResourceURL =>
-        selectorConstraints.allowedNonResourceURLs.has(nonResourceURL),
-      ),
+    if (!areRbacTableSearchStatesEqual(currentSearchState, normalizedSearchState)) {
+      applySearchState(normalizedSearchState)
     }
-
-    const selectionChanged =
-      normalizedSelection.apiGroups.length !== selectorSelection.apiGroups.length ||
-      normalizedSelection.resources.length !== selectorSelection.resources.length ||
-      normalizedSelection.verbs.length !== selectorSelection.verbs.length ||
-      normalizedSelection.resourceNames.length !== selectorSelection.resourceNames.length ||
-      normalizedSelection.nonResourceURLs.length !== selectorSelection.nonResourceURLs.length
-
-    if (selectionChanged) {
-      handleSelectorChange(normalizedSelection)
-    }
-  }, [
-    handleSelectorChange,
-    kindsData?.kindsWithVersion,
-    selectorConstraints.allowedGroups,
-    selectorConstraints.allowedNonResourceURLs,
-    selectorConstraints.allowedResources,
-    selectorConstraints.allowedVerbs,
-    nonResourceUrlsData?.items,
-    selectorSelection,
-  ])
+  }, [applySearchState, canApplySelectorConstraints, currentSearchState, normalizedSearchState])
 
   const rows = useMemo(() => buildRoleTableRows(graphData), [graphData])
   const scopeFilterItems = useMemo<TScopeFilterItem[]>(() => {
@@ -779,6 +790,10 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
     () => filteredRows.find(row => row.key === selectedRowKey) ?? null,
     [filteredRows, selectedRowKey],
   )
+  const selectedAggregatorRow = useMemo(
+    () => filteredRows.find(row => row.key === selectedAggregatorRowKey) ?? null,
+    [filteredRows, selectedAggregatorRowKey],
+  )
   const nodeById = useMemo(() => new Map(graphData?.nodes.map(node => [node.id, node] as const) ?? []), [graphData])
   const selectedNode = useMemo(() => {
     if (!selectedRow) return null
@@ -798,6 +813,88 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
     wildcardMode: payload.spec.wildcardMode,
     filterPhantomAPIs: payload.spec.filterPhantomAPIs,
   })
+  const renderAccountsFilterDropdown = useCallback(
+    ({ setSelectedKeys, selectedKeys, confirm, clearFilters, close }: FilterDropdownProps) => (
+      <div style={{ padding: 8 }} onKeyDown={event => event.stopPropagation()}>
+        <Input
+          placeholder="search accounts"
+          value={selectedKeys[0]}
+          onChange={event => {
+            const nextValue = event.target.value
+            const nextKeys = nextValue ? [nextValue] : []
+
+            setSelectedKeys(nextKeys)
+            setAccountColumnFilter(nextKeys as string[])
+            confirm({ closeDropdown: false })
+          }}
+          onPressEnter={() => confirm({ closeDropdown: true })}
+          style={{ marginBottom: 8, display: 'block' }}
+        />
+        <Space>
+          <Button
+            size="small"
+            style={{ width: 90 }}
+            onClick={() => {
+              clearFilters?.()
+              setAccountColumnFilter([])
+              confirm({ closeDropdown: false })
+            }}
+          >
+            Reset
+          </Button>
+          <Button type="link" size="small" onClick={() => close()}>
+            close
+          </Button>
+        </Space>
+      </div>
+    ),
+    [],
+  )
+  const renderAccountsFilterIcon = useCallback(
+    (filtered: boolean) => <SearchOutlined style={{ color: filtered ? token.colorPrimary : undefined }} />,
+    [token.colorPrimary],
+  )
+  const renderRoleFilterDropdown = useCallback(
+    ({ setSelectedKeys, selectedKeys, confirm, clearFilters, close }: FilterDropdownProps) => (
+      <div style={{ padding: 8 }} onKeyDown={event => event.stopPropagation()}>
+        <Input
+          placeholder="search roles"
+          value={selectedKeys[0]}
+          onChange={event => {
+            const nextValue = event.target.value
+            const nextKeys = nextValue ? [nextValue] : []
+
+            setSelectedKeys(nextKeys)
+            setRoleColumnFilter(nextKeys as string[])
+            confirm({ closeDropdown: false })
+          }}
+          onPressEnter={() => confirm({ closeDropdown: true })}
+          style={{ marginBottom: 8, display: 'block' }}
+        />
+        <Space>
+          <Button
+            size="small"
+            style={{ width: 90 }}
+            onClick={() => {
+              clearFilters?.()
+              setRoleColumnFilter([])
+              confirm({ closeDropdown: false })
+            }}
+          >
+            Reset
+          </Button>
+          <Button type="link" size="small" onClick={() => close()}>
+            close
+          </Button>
+        </Space>
+      </div>
+    ),
+    [],
+  )
+  const renderRoleFilterIcon = useCallback(
+    (filtered: boolean) => <SearchOutlined style={{ color: filtered ? token.colorPrimary : undefined }} />,
+    [token.colorPrimary],
+  )
 
   const columns = useMemo<ColumnsType<TRoleTableRow>>(
     () => [
@@ -824,6 +921,10 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
         title: 'Role',
         key: 'role',
         width: 320,
+        filteredValue: roleColumnFilter,
+        filterDropdown: renderRoleFilterDropdown,
+        filterIcon: renderRoleFilterIcon,
+        onFilter: (value, record) => getRoleSearchText(record).includes(String(value).toLowerCase()),
         sorter: (left, right) =>
           left.roleKind.localeCompare(right.roleKind) || left.roleName.localeCompare(right.roleName),
         render: (_, row) =>
@@ -840,7 +941,28 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
         key: 'aggregated',
         width: 120,
         sorter: (left, right) => Number(left.aggregated) - Number(right.aggregated),
-        render: renderAggregated,
+        render: (_, row) => {
+          if (!row.aggregated) {
+            return <Typography.Text type="secondary">no</Typography.Text>
+          }
+
+          const tag = <Tag color="green">yes</Tag>
+          if (row.aggregationSourcesCount === 0) {
+            return tag
+          }
+
+          return (
+            <Typography.Link
+              onClick={event => {
+                event.preventDefault()
+                event.stopPropagation()
+                setSelectedAggregatorRowKey(row.key)
+              }}
+            >
+              {tag}
+            </Typography.Link>
+          )
+        },
       },
       {
         title: 'Matched Rules',
@@ -854,6 +976,11 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
         dataIndex: 'accountBindings',
         key: 'accountBindings',
         width: 640,
+        filteredValue: accountColumnFilter,
+        filterDropdown: renderAccountsFilterDropdown,
+        filterIcon: renderAccountsFilterIcon,
+        onFilter: (value, record) =>
+          getAccountBindingsSearchText(record.accountBindings).includes(String(value).toLowerCase()),
         render: (_, row) =>
           renderAccountBindings({
             accountBindings: row.accountBindings,
@@ -863,56 +990,81 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
             token,
           }),
       },
-      {
-        title: 'Aggregators',
-        dataIndex: 'aggregationSources',
-        key: 'aggregationSources',
-        width: 360,
-        render: (_, row) =>
-          renderAggregationSources({
-            sources: row.aggregationSources,
-            clusterId,
-            baseFactoriesMapping,
-            navigate,
-          }),
-      },
     ],
-    [baseFactoriesMapping, clusterId, navigate, token],
+    [
+      accountColumnFilter,
+      baseFactoriesMapping,
+      clusterId,
+      navigate,
+      renderRoleFilterDropdown,
+      renderRoleFilterIcon,
+      renderAccountsFilterDropdown,
+      renderAccountsFilterIcon,
+      roleColumnFilter,
+      token,
+    ],
+  )
+
+  const submitQuery = useCallback(
+    (nextPayload: TRbacQueryPayload) => {
+      setCollapseSignal(prev => prev + 1)
+      setQueryErrorMessage(null)
+      queryMutation.mutate(nextPayload, {
+        onSuccess: (data: TRbacQueryResponse) => {
+          setQueryErrorMessage(null)
+          setGraphData(data.graph)
+          setStats(data.stats)
+          setSelectedRowKey(null)
+          setSelectedAggregatorRowKey(null)
+        },
+        onError: error => {
+          setGraphData(null)
+          setStats(undefined)
+          setSelectedRowKey(null)
+          setSelectedAggregatorRowKey(null)
+          setQueryErrorMessage(getQueryErrorMessage(error))
+        },
+      })
+    },
+    [queryMutation],
   )
 
   const handleSubmit = useCallback(() => {
-    setQueryErrorMessage(null)
-    queryMutation.mutate(payload, {
-      onSuccess: (data: TRbacQueryResponse) => {
-        setQueryErrorMessage(null)
-        setGraphData(data.graph)
-        setStats(data.stats)
-        setSelectedRowKey(null)
-        setScopeFilters([])
-      },
-      onError: error => {
-        setGraphData(null)
-        setStats(undefined)
-        setSelectedRowKey(null)
-        setQueryErrorMessage(getQueryErrorMessage(error))
-      },
-    })
-  }, [payload, queryMutation])
+    submitQuery(payload)
+  }, [payload, submitQuery])
 
   const handleReset = useCallback(() => {
-    setPayload(DEFAULT_PAYLOAD)
+    applySearchState(createDefaultRbacTableSearchState())
     setGraphData(null)
     setStats(undefined)
     setQueryErrorMessage(null)
-    setSelectorSelection(EMPTY_SELECTOR_SELECTION)
     setSelectedRowKey(null)
-    setScopeFilters([])
-  }, [])
+    setSelectedAggregatorRowKey(null)
+  }, [applySearchState])
 
   const nonResourceUrlsErrorMessage =
     typeof nonResourceUrlsError === 'string' ? nonResourceUrlsError : nonResourceUrlsError?.message
   const roleDetailsToken = useMemo(() => getRoleDetailsToken(token), [token])
   const tableScrollY = useMemo(() => Math.max(240, tableHeight - TABLE_SCROLL_RESERVED_HEIGHT), [tableHeight])
+
+  useEffect(() => {
+    if (canonicalSearchParams === appliedSearchParamsRef.current) return
+
+    appliedSearchParamsRef.current = canonicalSearchParams
+    setSearchParams(canonicalSearchParams ? new URLSearchParams(canonicalSearchParams) : new URLSearchParams(), {
+      replace: true,
+    })
+  }, [canonicalSearchParams, setSearchParams])
+
+  useEffect(() => {
+    if (autoSubmitAttemptedRef.current || !selectorMetadataSettled) return
+
+    autoSubmitAttemptedRef.current = true
+
+    if (hasAnyRbacTableSearchState(normalizedSearchState, searchNormalizationOptions)) {
+      submitQuery(normalizedSearchState.payload)
+    }
+  }, [normalizedSearchState, searchNormalizationOptions, selectorMetadataSettled, submitQuery])
 
   useEffect(() => {
     const updateTableHeight = () => {
@@ -1007,6 +1159,38 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
 
     return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No role details were returned." />
   })()
+  const aggregatorModalContent = (() => {
+    if (!selectedAggregatorRow) {
+      return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No row is selected." />
+    }
+
+    if (selectedAggregatorRow.aggregationSources.length === 0) {
+      return (
+        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No aggregation sources were found for this role." />
+      )
+    }
+
+    return (
+      <div>
+        <Descriptions size="small" bordered column={2} style={{ marginBottom: 16 }}>
+          <Descriptions.Item label="Role">{`${selectedAggregatorRow.roleKind}: ${selectedAggregatorRow.roleName}`}</Descriptions.Item>
+          <Descriptions.Item label="Namespace">{selectedAggregatorRow.namespace}</Descriptions.Item>
+          <Descriptions.Item label="Aggregators">{selectedAggregatorRow.aggregationSourcesCount}</Descriptions.Item>
+          <Descriptions.Item label="Aggregated">
+            <Tag color="green">yes</Tag>
+          </Descriptions.Item>
+        </Descriptions>
+
+        {renderAggregationSources({
+          sources: selectedAggregatorRow.aggregationSources,
+          clusterId,
+          baseFactoriesMapping,
+          navigate,
+          stacked: true,
+        })}
+      </div>
+    )
+  })()
 
   return (
     <Styled.Container ref={containerRef}>
@@ -1016,6 +1200,7 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
             value={payload}
             selectorLoading={kindsLoading || nonResourceUrlsLoading}
             selectorOptions={selectorOptions}
+            collapseSignal={collapseSignal}
             onSelectorChange={(patch, changedKey) =>
               handleSelectorChange({ ...selectorSelection, ...patch }, changedKey)
             }
@@ -1101,7 +1286,13 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
               <Descriptions.Item label="Accounts">{selectedRow.accountBindings.length}</Descriptions.Item>
               <Descriptions.Item label="Aggregators">{selectedRow.aggregationSourcesCount}</Descriptions.Item>
               <Descriptions.Item label="Matched Rules">{selectedRow.matchedRuleCount}</Descriptions.Item>
-              <Descriptions.Item label="Aggregated">{renderAggregated(selectedRow.aggregated)}</Descriptions.Item>
+              <Descriptions.Item label="Aggregated">
+                {selectedRow.aggregated ? (
+                  <Tag color="green">yes</Tag>
+                ) : (
+                  <Typography.Text type="secondary">no</Typography.Text>
+                )}
+              </Descriptions.Item>
               <Descriptions.Item label="Account List" span={2}>
                 {renderAccountBindings({
                   accountBindings: selectedRow.accountBindings,
@@ -1109,14 +1300,6 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
                   baseFactoriesMapping,
                   navigate,
                   token,
-                })}
-              </Descriptions.Item>
-              <Descriptions.Item label="Aggregator Roles" span={2}>
-                {renderAggregationSources({
-                  sources: selectedRow.aggregationSources,
-                  clusterId,
-                  baseFactoriesMapping,
-                  navigate,
                 })}
               </Descriptions.Item>
             </Descriptions>
@@ -1129,6 +1312,17 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
             )}
           </>
         )}
+      </Modal>
+      <Modal
+        open={Boolean(selectedAggregatorRow)}
+        onCancel={() => setSelectedAggregatorRowKey(null)}
+        footer={null}
+        width={900}
+        centered
+        destroyOnHidden
+        title={selectedAggregatorRow ? `Aggregators: ${selectedAggregatorRow.roleName}` : 'RBAC aggregators'}
+      >
+        {aggregatorModalContent}
       </Modal>
     </Styled.Container>
   )

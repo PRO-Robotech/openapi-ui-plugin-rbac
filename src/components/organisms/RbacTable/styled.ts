@@ -120,10 +120,6 @@ const TableContainer = styled.div<TTableContainerProps>`
 
   /* stylelint-disable selector-no-qualifying-type */
 
-  .ant-table-tbody > tr.ant-table-row {
-    cursor: pointer;
-  }
-
   .ant-table-tbody > tr.ant-table-row:hover > td {
     background: ${({ $colorBgContainer }) => $colorBgContainer};
   }
@@ -164,6 +160,13 @@ const ResourceListItem = styled.div`
   min-width: 0;
 `
 
+const ResourceStack = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+`
+
 const AccountBindingList = styled.div`
   display: flex;
   flex-direction: column;
@@ -199,6 +202,8 @@ const AccountBindingTextGroup = styled.span`
     margin-inline-end: 0;
     flex-shrink: 0;
   }
+
+  /* stylelint-disable no-descending-specificity */
 
   > span:last-child,
   .ant-typography,
@@ -252,6 +257,7 @@ export const Styled = {
   SpinContainer,
   ResourceList,
   ResourceListItem,
+  ResourceStack,
   AccountBindingList,
   AccountBindingRow,
   AccountBindingSection,
