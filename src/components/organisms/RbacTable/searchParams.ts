@@ -57,6 +57,9 @@ const uniqueStrings = (values: string[]) => {
 const sanitizeStrings = (values: string[]) =>
   uniqueStrings(values.map(value => value.trim()).filter(value => value.length > 0))
 
+const sanitizeApiGroupStrings = (values: string[]) =>
+  uniqueStrings(values.map(value => value.trim()).filter(value => value.length > 0 || value === ''))
+
 const getSingleParam = (params: URLSearchParams, key: string) => {
   const value = params.get(key)
   return value?.trim() ? value.trim() : undefined
@@ -146,7 +149,7 @@ export const areRbacTableSearchStatesEqual = (left: TRbacTableSearchState, right
 export const parseRbacTableSearchParams = (params: URLSearchParams): TRbacTableSearchState => {
   const defaultState = createDefaultRbacTableSearchState()
   const selectorSelection = {
-    apiGroups: getArrayParam(params, 'apiGroup'),
+    apiGroups: uniqueStrings(params.getAll('apiGroup').map(value => value.trim())),
     resources: getArrayParam(params, 'resource'),
     verbs: getArrayParam(params, 'verb'),
     resourceNames: getArrayParam(params, 'resourceName'),
@@ -208,7 +211,7 @@ export const normalizeRbacTableSearchState = (
   const nextState = createDefaultRbacTableSearchState()
   const { changedKey } = options
   const sanitizedSelectorSelection: TRbacTableSelectorSelection = {
-    apiGroups: sanitizeStrings(state.selectorSelection.apiGroups),
+    apiGroups: sanitizeApiGroupStrings(state.selectorSelection.apiGroups),
     resources: sanitizeStrings(state.selectorSelection.resources),
     verbs: sanitizeStrings(state.selectorSelection.verbs),
     resourceNames: sanitizeStrings(state.selectorSelection.resourceNames),

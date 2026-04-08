@@ -44,6 +44,7 @@ import type {
 import { useRbacGraphQuery } from 'hooks/useRbacGraphQuery'
 import { useRbacRoleDetailsQuery } from 'hooks/useRbacRoleDetailsQuery'
 import { RbacResourceLabel } from 'components/organisms/RbacGraph/atoms/RbacResourceLabel'
+import { RbacModalTitleLabel } from 'components/organisms/RbacGraph/atoms'
 import { RbacQueryForm, RbacRoleDetailsModalContent } from 'components/organisms/RbacGraph/molecules'
 import { ROLE_NODE_TYPES } from 'components/organisms/RbacGraph/constants'
 import { hasWildcard, toSortedOptions } from 'components/organisms/RbacGraph/utils'
@@ -799,6 +800,19 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
     if (!selectedRow) return null
     return nodeById.get(selectedRow.roleNodeId) ?? null
   }, [nodeById, selectedRow])
+  const selectedNodeHref = useMemo(() => {
+    if (!selectedNode) return undefined
+
+    return getRbacResourceHref({
+      clusterId,
+      node: {
+        type: selectedNode.type,
+        name: selectedNode.name,
+        namespace: selectedNode.type === 'Role' ? selectedNode.namespace : undefined,
+      },
+      baseFactoriesMapping,
+    })
+  }, [baseFactoriesMapping, clusterId, selectedNode])
 
   const primaryRoleNode = useMemo<Pick<TRbacNode, 'type' | 'name' | 'namespace'> | null>(() => {
     if (!selectedNode || !ROLE_NODE_TYPES.has(selectedNode.type)) return null
@@ -1274,7 +1288,17 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
         width={1400}
         centered
         destroyOnHidden
-        title={selectedRow ? `${selectedRow.roleKind}: ${selectedRow.roleName}` : 'RBAC role details'}
+        title={
+          selectedNode ? (
+            <RbacModalTitleLabel
+              badgeId={`rbac-table-modal-title-${selectedNode.id}`}
+              node={selectedNode}
+              href={selectedNodeHref}
+            />
+          ) : (
+            'RBAC role details'
+          )
+        }
       >
         {!selectedRow || !selectedNode ? (
           <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No row is selected." />
