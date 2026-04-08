@@ -16,6 +16,7 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { useKindsRaw, useK8sSmartResource } from '@prorobotech/openapi-k8s-toolkit'
+import type { TNavigationResource } from '@prorobotech/openapi-k8s-toolkit'
 import { Alert, Card, Empty, Modal, Spin, theme } from 'antd'
 import axios from 'axios'
 import { FOOTER_HEIGHT } from 'constants/blocksSizes'
@@ -34,13 +35,14 @@ import { useRbacGraphQuery } from 'hooks/useRbacGraphQuery'
 import { useRbacRoleDetailsQuery } from 'hooks/useRbacRoleDetailsQuery'
 import { layoutRbacGraph } from 'utils/rbacForceLayout'
 import { layoutRbacGraphStar } from 'utils/rbacStarLayout'
+import { getNavigationBaseFactoriesMapping, getRbacResourceHref, RBAC_NAVIGATION_QUERY } from 'utils/rbacResourceLink'
 import {
   buildRbacFlowModel,
   applyFocusToModel,
   applyStarSelectionToModel,
   filterGraphByOptions,
 } from 'utils/rbacFlowAdapter'
-import { NamespaceGroupNode, RbacEdge, RbacNodeCard } from './atoms'
+import { NamespaceGroupNode, RbacEdge, RbacModalTitleLabel, RbacNodeCard } from './atoms'
 import { RbacGraphToggles, RbacQueryForm, RbacRoleDetailsModalContent } from './molecules'
 import { hasWildcard, toSortedOptions, decorateFlowModelWithResourceLabels } from './utils'
 import { LEGEND, DEFAULT_PAYLOAD, DEFAULT_OPTIONS, EMPTY_SELECTOR_SELECTION, ROLE_NODE_TYPES } from './constants'
@@ -109,6 +111,16 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
     plural: 'nonresourceurls',
     isEnabled: Boolean(clusterId),
   })
+
+  const { data: navigationData } = useK8sSmartResource<{ items: TNavigationResource[] }>({
+    cluster: clusterId,
+    apiGroup: RBAC_NAVIGATION_QUERY.apiGroup,
+    apiVersion: RBAC_NAVIGATION_QUERY.apiVersion,
+    plural: RBAC_NAVIGATION_QUERY.plural,
+    fieldSelector: RBAC_NAVIGATION_QUERY.fieldSelector,
+    isEnabled: Boolean(clusterId),
+  })
+  const baseFactoriesMapping = useMemo(() => getNavigationBaseFactoriesMapping(navigationData), [navigationData])
 
   const selectedRoleNode = useMemo(() => {
     if (!graphData || !detailsNodeId) return null
@@ -615,9 +627,19 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
   const isLoading = queryMutation.isPending || layouting
   const nonResourceUrlsErrorMessage =
     typeof nonResourceUrlsError === 'string' ? nonResourceUrlsError : nonResourceUrlsError?.message
-  const roleDetailsTitle = selectedRoleNode
-    ? `${selectedRoleNode.type === 'ClusterRole' ? 'ClusterRole' : 'Role'}: ${selectedRoleNode.name}`
-    : ''
+  const roleDetailsHref = useMemo(() => {
+    if (!selectedRoleNode) return undefined
+
+    return getRbacResourceHref({
+      clusterId,
+      node: {
+        type: selectedRoleNode.type,
+        name: selectedRoleNode.name,
+        namespace: selectedRoleNode.type === 'Role' ? selectedRoleNode.namespace : undefined,
+      },
+      baseFactoriesMapping,
+    })
+  }, [baseFactoriesMapping, clusterId, selectedRoleNode])
 
   useEffect(() => {
     const updateCanvasHeight = () => {
@@ -769,7 +791,17 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
       )}
       <Modal
         open={Boolean(detailsNodeId)}
-        title={roleDetailsTitle}
+        title={
+          selectedRoleNode ? (
+            <RbacModalTitleLabel
+              badgeId={`rbac-graph-modal-title-${selectedRoleNode.id}`}
+              node={selectedRoleNode}
+              href={roleDetailsHref}
+            />
+          ) : (
+            'RBAC role details'
+          )
+        }
         onCancel={() => setDetailsNodeId(null)}
         footer={null}
         width={1400}

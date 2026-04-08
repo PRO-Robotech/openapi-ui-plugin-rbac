@@ -1,4 +1,5 @@
 export { NamespaceGroupNode } from './NamespaceGroupNode'
 export { RbacEdge } from './RbacEdge'
+export { RbacModalTitleLabel } from './RbacModalTitleLabel'
 export { RbacNodeCard } from './RbacNodeCard'
 export { RbacResourceLabel } from './RbacResourceLabel'

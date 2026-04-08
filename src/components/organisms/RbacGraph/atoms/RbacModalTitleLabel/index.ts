@@ -1,0 +1,1 @@
+export { RbacModalTitleLabel } from './RbacModalTitleLabel'
