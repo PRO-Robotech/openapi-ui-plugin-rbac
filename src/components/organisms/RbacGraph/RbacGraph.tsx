@@ -19,7 +19,6 @@ import { useKindsRaw, useK8sSmartResource } from '@prorobotech/openapi-k8s-toolk
 import type { TNavigationResource } from '@prorobotech/openapi-k8s-toolkit'
 import { Alert, Card, Empty, Modal, Spin, theme } from 'antd'
 import axios from 'axios'
-import { useNavigate } from 'react-router-dom'
 import { FOOTER_HEIGHT } from 'constants/blocksSizes'
 import type {
   TRbacQueryPayload,
@@ -69,7 +68,6 @@ const getQueryErrorMessage = (error: unknown) => {
 }
 
 const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
-  const navigate = useNavigate()
   const { token } = theme.useToken()
   const { fitView } = useReactFlow()
   const containerRef = useRef<HTMLDivElement | null>(null)
