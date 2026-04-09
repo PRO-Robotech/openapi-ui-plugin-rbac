@@ -42,6 +42,7 @@ export type TRbacNode = {
   aggregated?: boolean
   aggregationSources?: string[]
   matchedRuleRefs?: TRbacRuleRef[]
+  phantom?: boolean
 }
 
 export type TRbacEdge = {

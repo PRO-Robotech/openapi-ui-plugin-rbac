@@ -1,0 +1,1 @@
+export { ClusterRoleDetailsPage } from './ClusterRoleDetailsPage'

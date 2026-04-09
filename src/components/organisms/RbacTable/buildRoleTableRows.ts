@@ -6,6 +6,7 @@ export type TTableSubject = {
   kind: Extract<TRbacNode['type'], 'User' | 'Group' | 'ServiceAccount'>
   name: string
   namespace?: string
+  phantom?: boolean
 }
 
 export type TTableAggregationSource = {
@@ -63,6 +64,32 @@ const toSubjectKey = (node: TRbacNode) => `${node.type}:${node.namespace ?? ''}:
 const toBindingKey = (node: TRbacNode) => `${node.type}:${node.namespace ?? ''}:${node.name}`
 const toAggregationKey = (type: TRbacNode['type'], name: string, namespace?: string) =>
   `${type}:${namespace ?? ''}:${name}`
+
+const parseAggregationSourceRef = (source: string): Pick<TTableAggregationSource, 'type' | 'name' | 'namespace'> => {
+  const normalizedSource = source.trim()
+  const [rawPrefix, ...rest] = normalizedSource.split(':')
+  const prefix = rawPrefix?.toLowerCase()
+
+  if (prefix === 'clusterrole' && rest.length > 0) {
+    return {
+      type: 'ClusterRole',
+      name: rest.join(':'),
+    }
+  }
+
+  if (prefix === 'role' && rest.length > 1) {
+    return {
+      type: 'Role',
+      namespace: rest[0],
+      name: rest.slice(1).join(':'),
+    }
+  }
+
+  return {
+    type: 'ClusterRole',
+    name: normalizedSource,
+  }
+}
 
 const sortSubjects = (left: TTableSubject, right: TTableSubject) =>
   left.kind.localeCompare(right.kind) ||
@@ -208,6 +235,7 @@ export const buildRoleTableRows = (graph: TGraph | null): TRoleTableRow[] => {
         kind: subjectNode.type as TTableSubject['kind'],
         name: subjectNode.name,
         namespace: subjectNode.namespace,
+        phantom: subjectNode.phantom,
       }
 
       roleSubjects.set(subject.key, subject)
@@ -272,10 +300,10 @@ export const buildRoleTableRows = (graph: TGraph | null): TRoleTableRow[] => {
           return
         }
 
-        aggregationSources.set(toAggregationKey('ClusterRole', source), {
-          key: toAggregationKey('ClusterRole', source),
-          type: 'ClusterRole',
-          name: source,
+        const parsedSource = parseAggregationSourceRef(source)
+        aggregationSources.set(toAggregationKey(parsedSource.type, parsedSource.name, parsedSource.namespace), {
+          key: toAggregationKey(parsedSource.type, parsedSource.name, parsedSource.namespace),
+          ...parsedSource,
         })
       })
 

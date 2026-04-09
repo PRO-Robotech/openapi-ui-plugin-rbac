@@ -2,6 +2,7 @@ import { getResourceLink } from '@prorobotech/openapi-k8s-toolkit'
 import type { TNavigationResource } from '@prorobotech/openapi-k8s-toolkit'
 import type { TRbacNode } from 'localTypes/rbacGraph'
 import { getRuntimeFactoryConfig, OPENAPI_UI_BASEPREFIX } from './runtimeConfig'
+import { getPluginBasePath } from './getPluginBasePath'
 
 type TRbacLinkableNode = Pick<TRbacNode, 'type' | 'name' | 'namespace'>
 
@@ -17,6 +18,28 @@ export const RBAC_NAVIGATION_QUERY = {
   plural: 'navigations',
   fieldSelector: 'metadata.name=navigation',
 } as const
+
+export const getInternalRoleHref = ({ namespace, name }: { namespace: string; name: string }) => {
+  if (!namespace || !name) {
+    return undefined
+  }
+
+  const pathname = typeof window === 'undefined' ? '' : window.location.pathname
+  const basePath = getPluginBasePath(pathname)
+
+  return `${basePath}/roles/${encodeURIComponent(namespace)}/${encodeURIComponent(name)}`
+}
+
+export const getInternalClusterRoleHref = ({ name }: { name: string }) => {
+  if (!name) {
+    return undefined
+  }
+
+  const pathname = typeof window === 'undefined' ? '' : window.location.pathname
+  const basePath = getPluginBasePath(pathname)
+
+  return `${basePath}/clusterroles/${encodeURIComponent(name)}`
+}
 
 const RBAC_RESOURCE_ROUTE_CONFIG: Partial<Record<TRbacNode['type'], TResourceRouteConfig>> = {
   Role: {
@@ -70,6 +93,14 @@ export const getRbacResourceHref = ({
 
   if (resourceConfig.needsNamespace && !node.namespace) {
     return undefined
+  }
+
+  if (node.type === 'Role' && node.namespace) {
+    return getInternalRoleHref({ namespace: node.namespace, name: node.name })
+  }
+
+  if (node.type === 'ClusterRole') {
+    return getInternalClusterRoleHref({ name: node.name })
   }
 
   const runtimeFactoryConfig = getRuntimeFactoryConfig()

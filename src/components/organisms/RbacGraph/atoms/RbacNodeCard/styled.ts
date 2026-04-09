@@ -3,10 +3,22 @@ import styled from 'styled-components'
 type TCardProps = {
   $borderColor: string
   $dimmed: boolean
+  $phantom: boolean
   $isRoot: boolean
 }
 
 const Card = styled.div<TCardProps>`
+  ${({ $dimmed, $phantom }) => {
+    let opacity = 1
+
+    if ($dimmed) {
+      opacity = 0.25
+    } else if ($phantom) {
+      opacity = 0.6
+    }
+
+    return `opacity: ${opacity};`
+  }}
   position: relative;
   min-width: 180px;
   max-width: 260px;
@@ -14,7 +26,6 @@ const Card = styled.div<TCardProps>`
   border-radius: 8px;
   padding: 8px 12px;
   background-clip: padding-box;
-  opacity: ${({ $dimmed }) => ($dimmed ? 0.25 : 1)};
   box-shadow: ${({ $isRoot }) => ($isRoot ? '0 0 0 3px rgba(24, 144, 255, 0.4)' : 'none')};
   transition:
     opacity 0.2s,
@@ -29,6 +40,12 @@ const BadgeRow = styled.div`
   justify-content: space-between;
   gap: 8px;
   margin-bottom: 2px;
+`
+
+const BadgeTrail = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 `
 
 type TBadgeProps = {
@@ -50,6 +67,25 @@ type TRuleCountBadgeProps = {
 }
 
 const RuleCountBadge = styled.span<TRuleCountBadgeProps>`
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  border: 1px solid ${({ $color }) => $color};
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  color: ${({ $color }) => $color};
+`
+
+type TStateBadgeProps = {
+  $color: string
+}
+
+const StateBadge = styled.span<TStateBadgeProps>`
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
@@ -89,8 +125,10 @@ const Subtitle = styled.div`
 export const Styled = {
   Card,
   BadgeRow,
+  BadgeTrail,
   TypeBadge,
   RuleCountBadge,
+  StateBadge,
   Title,
   TitlePrefix,
   Subtitle,

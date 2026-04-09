@@ -1,8 +1,8 @@
 /* eslint-disable no-nested-ternary */
 import React, { FC } from 'react'
-import { Tag, Typography } from 'antd'
-import { useNavigate } from 'react-router-dom'
+import { Tag } from 'antd'
 import type { TRbacNode } from 'localTypes/rbacGraph'
+import { RbacResourceLink } from '../RbacResourceLink'
 import { RbacResourceLabel } from '../RbacResourceLabel'
 
 type TRbacModalTitleLabelProps = {
@@ -12,37 +12,16 @@ type TRbacModalTitleLabelProps = {
 }
 
 export const RbacModalTitleLabel: FC<TRbacModalTitleLabelProps> = ({ badgeId, node, href }) => {
-  const navigate = useNavigate()
   const textNode =
     node.type === 'Role' && node.namespace ? (
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
         <Tag color="orange" style={{ marginInlineEnd: 0 }}>
           {node.namespace}
         </Tag>
-        {href ? (
-          <Typography.Link
-            onClick={event => {
-              event.preventDefault()
-              event.stopPropagation()
-              navigate(href)
-            }}
-          >
-            {node.name}
-          </Typography.Link>
-        ) : (
-          <span>{node.name}</span>
-        )}
+        {href ? <RbacResourceLink href={href}>{node.name}</RbacResourceLink> : <span>{node.name}</span>}
       </span>
     ) : href ? (
-      <Typography.Link
-        onClick={event => {
-          event.preventDefault()
-          event.stopPropagation()
-          navigate(href)
-        }}
-      >
-        {node.name}
-      </Typography.Link>
+      <RbacResourceLink href={href}>{node.name}</RbacResourceLink>
     ) : (
       <span>{node.name}</span>
     )

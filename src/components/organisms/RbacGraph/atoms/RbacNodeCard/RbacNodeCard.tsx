@@ -12,6 +12,7 @@ type TRbacNodeData = {
   typeLabel: string
   namespace?: string
   aggregated?: boolean
+  phantom?: boolean
   ruleCount: number
   filteredDim: boolean
   focusDim: boolean
@@ -35,6 +36,7 @@ export const RbacNodeCard: FC<TRbacNodeCardProps> = memo(({ data, selected }) =>
     typeLabel,
     namespace,
     ruleCount,
+    phantom,
     filteredDim,
     focusDim,
     focusRoot,
@@ -44,6 +46,7 @@ export const RbacNodeCard: FC<TRbacNodeCardProps> = memo(({ data, selected }) =>
     badgeValue,
   } = data as unknown as TRbacNodeData
   const borderColor = NODE_COLORS[nodeType] ?? '#475569'
+  const isPhantomSubject = nodeType === 'ServiceAccount' && Boolean(phantom)
   const hiddenHandleStyle = {
     opacity: 0,
     width: 8,
@@ -59,6 +62,7 @@ export const RbacNodeCard: FC<TRbacNodeCardProps> = memo(({ data, selected }) =>
     <Styled.Card
       $borderColor={borderColor}
       $dimmed={filteredDim || focusDim}
+      $phantom={isPhantomSubject}
       $isRoot={focusRoot || selected}
       style={{ background: token.colorBgContainer }}
     >
@@ -66,7 +70,10 @@ export const RbacNodeCard: FC<TRbacNodeCardProps> = memo(({ data, selected }) =>
       <Handle type="source" position={Position.Top} id="center" style={hiddenHandleStyle} />
       <Styled.BadgeRow>
         <Styled.TypeBadge $color={borderColor}>{typeLabel}</Styled.TypeBadge>
-        {showRuleCount && <Styled.RuleCountBadge $color={borderColor}>RULES {ruleCount}</Styled.RuleCountBadge>}
+        <Styled.BadgeTrail>
+          {isPhantomSubject && <Styled.StateBadge $color={token.colorWarning}>Missing</Styled.StateBadge>}
+          {showRuleCount && <Styled.RuleCountBadge $color={borderColor}>RULES {ruleCount}</Styled.RuleCountBadge>}
+        </Styled.BadgeTrail>
       </Styled.BadgeRow>
       <Styled.Title style={{ color: token.colorText }}>
         {titlePrefix && <Styled.TitlePrefix>{titlePrefix}</Styled.TitlePrefix>}

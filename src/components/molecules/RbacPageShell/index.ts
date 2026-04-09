@@ -1,0 +1,1 @@
+export { RbacPageShell } from './RbacPageShell'

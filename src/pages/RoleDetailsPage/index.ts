@@ -1,0 +1,1 @@
+export { RoleDetailsPage } from './RoleDetailsPage'

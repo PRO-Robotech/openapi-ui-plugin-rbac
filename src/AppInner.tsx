@@ -1,7 +1,7 @@
 /* eslint-disable import/no-default-export */
 import React, { FC } from 'react'
 import { Routes, Route, Navigate, useInRouterContext } from 'react-router-dom'
-import { RbacPage, RbacTablePage } from 'pages'
+import { ClusterRoleDetailsPage, RbacPage, RbacTablePage, RoleDetailsPage } from 'pages'
 
 export type TAppInnerProps = {
   cluster?: string
@@ -49,6 +49,34 @@ export const AppInner: FC<TAppInnerProps> = ({
         path="table"
         element={
           <RbacTablePage
+            cluster={cluster}
+            namespace={namespace}
+            syntheticProject={syntheticProject}
+            pluginName={pluginName}
+            pluginPath={pluginPath}
+            toggleTheme={toggleTheme}
+          />
+        }
+      />
+
+      <Route
+        path="clusterroles/:name"
+        element={
+          <ClusterRoleDetailsPage
+            cluster={cluster}
+            namespace={namespace}
+            syntheticProject={syntheticProject}
+            pluginName={pluginName}
+            pluginPath={pluginPath}
+            toggleTheme={toggleTheme}
+          />
+        }
+      />
+
+      <Route
+        path="roles/:namespace/:name"
+        element={
+          <RoleDetailsPage
             cluster={cluster}
             namespace={namespace}
             syntheticProject={syntheticProject}
