@@ -202,6 +202,7 @@ export const buildRbacFlowModel = (
         typeLabel: NODE_TYPE_LABELS[node.type] ?? node.type,
         namespace: node.namespace,
         aggregated: node.aggregated,
+        phantom: node.phantom,
         matchedRuleRefs: node.matchedRuleRefs,
         ruleCount: node.matchedRuleRefs?.length ?? 0,
         filteredDim: false,

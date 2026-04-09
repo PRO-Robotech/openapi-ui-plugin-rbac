@@ -30,7 +30,7 @@ import {
   theme,
 } from 'antd'
 import axios from 'axios'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { FOOTER_HEIGHT } from 'constants/blocksSizes'
 import type {
   TRbacNode,
@@ -43,6 +43,7 @@ import type {
 } from 'localTypes/rbacGraph'
 import { useRbacGraphQuery } from 'hooks/useRbacGraphQuery'
 import { useRbacRoleDetailsQuery } from 'hooks/useRbacRoleDetailsQuery'
+import { RbacResourceLink } from 'components/organisms/RbacGraph/atoms/RbacResourceLink'
 import { RbacResourceLabel } from 'components/organisms/RbacGraph/atoms/RbacResourceLabel'
 import { RbacModalTitleLabel } from 'components/organisms/RbacGraph/atoms'
 import { RbacQueryForm, RbacRoleDetailsModalContent } from 'components/organisms/RbacGraph/molecules'
@@ -97,9 +98,6 @@ const MIN_TABLE_HEIGHT = 320
 const TABLE_SCROLL_RESERVED_HEIGHT = 56
 
 const formatSubjectLabel = ({ name }: TTableSubject) => name
-
-const formatAggregationSourceLabel = ({ name, namespace }: TTableAggregationSource) =>
-  namespace ? `${namespace}/${name}` : name
 
 const getAccountBindingsSearchText = (accountBindings: TTableAccountBinding[]) =>
   accountBindings
@@ -170,47 +168,41 @@ const LinkedResourceLabel = ({
   value,
   badgeValue,
   href,
-  navigate,
+  namespace,
 }: {
   badgeId: string
   value: string
   badgeValue?: string
   href?: string
-  navigate: ReturnType<typeof useNavigate>
+  namespace?: string
 }) => {
-  const label = <RbacResourceLabel badgeId={badgeId} value={value} badgeValue={badgeValue} />
-  if (!href) return label
+  let textNode: React.ReactNode
 
-  return (
-    <RbacResourceLabel
-      badgeId={badgeId}
-      value={value}
-      badgeValue={badgeValue}
-      textNode={
-        <Typography.Link
-          onClick={event => {
-            event.preventDefault()
-            event.stopPropagation()
-            navigate(href)
-          }}
-        >
-          {value}
-        </Typography.Link>
-      }
-    />
-  )
+  if (namespace && namespace !== 'cluster-wide') {
+    textNode = (
+      <Styled.AccountBindingTextGroup>
+        <Tag color="orange">{namespace}</Tag>
+        {href ? <RbacResourceLink href={href}>{value}</RbacResourceLink> : <span>{value}</span>}
+      </Styled.AccountBindingTextGroup>
+    )
+  } else if (href) {
+    textNode = <RbacResourceLink href={href}>{value}</RbacResourceLink>
+  }
+
+  const label = <RbacResourceLabel badgeId={badgeId} value={value} badgeValue={badgeValue} />
+  if (!textNode) return label
+
+  return <RbacResourceLabel badgeId={badgeId} value={value} badgeValue={badgeValue} textNode={textNode} />
 }
 
 const renderRoleLabel = ({
   row,
   clusterId,
   baseFactoriesMapping,
-  navigate,
 }: {
   row: TRoleTableRow
   clusterId: string
   baseFactoriesMapping?: Record<string, string>
-  navigate: ReturnType<typeof useNavigate>
 }) => {
   const href = getRbacResourceHref({
     clusterId,
@@ -231,19 +223,7 @@ const renderRoleLabel = ({
         textNode={
           <Styled.AccountBindingTextGroup>
             <Tag color="orange">{row.namespace}</Tag>
-            {href ? (
-              <Typography.Link
-                onClick={event => {
-                  event.preventDefault()
-                  event.stopPropagation()
-                  navigate(href)
-                }}
-              >
-                {row.roleName}
-              </Typography.Link>
-            ) : (
-              <span>{row.roleName}</span>
-            )}
+            {href ? <RbacResourceLink href={href}>{row.roleName}</RbacResourceLink> : <span>{row.roleName}</span>}
           </Styled.AccountBindingTextGroup>
         }
       />
@@ -256,7 +236,6 @@ const renderRoleLabel = ({
       value={row.roleName}
       badgeValue={row.roleKind}
       href={href}
-      navigate={navigate}
     />
   )
 }
@@ -265,13 +244,11 @@ const renderAccountBindings = ({
   accountBindings,
   clusterId,
   baseFactoriesMapping,
-  navigate,
   token,
 }: {
   accountBindings: TTableAccountBinding[]
   clusterId: string
   baseFactoriesMapping?: Record<string, string>
-  navigate: ReturnType<typeof useNavigate>
   token: ReturnType<typeof theme.useToken>['token']
 }) => {
   if (accountBindings.length === 0) {
@@ -289,7 +266,7 @@ const renderAccountBindings = ({
                 if (!subject) return null
                 const { key, kind, name, namespace } = subject
                 const subjectHref =
-                  kind === 'ServiceAccount'
+                  kind === 'ServiceAccount' && !subject.phantom
                     ? getRbacResourceHref({
                         clusterId,
                         node: {
@@ -307,18 +284,15 @@ const renderAccountBindings = ({
                     value={formatSubjectLabel(subject)}
                     badgeValue={kind}
                     textNode={
-                      <Styled.AccountBindingTextGroup>
+                      <Styled.AccountBindingTextGroup style={subject.phantom ? { opacity: 0.6 } : undefined}>
                         {namespace && <Tag color="orange">{namespace}</Tag>}
+                        {subject.phantom && (
+                          <Tag color="default" style={{ marginInlineEnd: 0 }}>
+                            missing
+                          </Tag>
+                        )}
                         {subjectHref ? (
-                          <Typography.Link
-                            onClick={event => {
-                              event.preventDefault()
-                              event.stopPropagation()
-                              navigate(subjectHref)
-                            }}
-                          >
-                            {formatSubjectLabel(subject)}
-                          </Typography.Link>
+                          <RbacResourceLink href={subjectHref}>{formatSubjectLabel(subject)}</RbacResourceLink>
                         ) : (
                           <span>{formatSubjectLabel(subject)}</span>
                         )}
@@ -361,15 +335,7 @@ const renderAccountBindings = ({
                       <Styled.AccountBindingTextGroup>
                         {namespace && <Tag color="orange">{namespace}</Tag>}
                         {bindingHref ? (
-                          <Typography.Link
-                            onClick={event => {
-                              event.preventDefault()
-                              event.stopPropagation()
-                              navigate(bindingHref)
-                            }}
-                          >
-                            {name}
-                          </Typography.Link>
+                          <RbacResourceLink href={bindingHref}>{name}</RbacResourceLink>
                         ) : (
                           <span>{name}</span>
                         )}
@@ -402,13 +368,11 @@ const renderAggregationSources = ({
   sources,
   clusterId,
   baseFactoriesMapping,
-  navigate,
   stacked = false,
 }: {
   sources: TTableAggregationSource[]
   clusterId: string
   baseFactoriesMapping?: Record<string, string>
-  navigate: ReturnType<typeof useNavigate>
   stacked?: boolean
 }) => {
   if (sources.length === 0) {
@@ -419,8 +383,9 @@ const renderAggregationSources = ({
     <Styled.ResourceListItem key={source.key}>
       <LinkedResourceLabel
         badgeId={`rbac-table-aggregator-${source.key}`}
-        value={formatAggregationSourceLabel(source)}
+        value={source.name}
         badgeValue={source.type}
+        namespace={source.namespace}
         href={
           source.type === 'Role' || source.type === 'ClusterRole'
             ? getRbacResourceHref({
@@ -434,7 +399,6 @@ const renderAggregationSources = ({
               })
             : undefined
         }
-        navigate={navigate}
       />
     </Styled.ResourceListItem>
   ))
@@ -468,7 +432,6 @@ const getRoleDetailsToken = (token: ReturnType<typeof theme.useToken>['token']) 
 })
 
 export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
-  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const { token } = theme.useToken()
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -946,7 +909,6 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
             row,
             clusterId,
             baseFactoriesMapping,
-            navigate,
           }),
       },
       {
@@ -1000,7 +962,6 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
             accountBindings: row.accountBindings,
             clusterId,
             baseFactoriesMapping,
-            navigate,
             token,
           }),
       },
@@ -1009,7 +970,6 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
       accountColumnFilter,
       baseFactoriesMapping,
       clusterId,
-      navigate,
       renderRoleFilterDropdown,
       renderRoleFilterIcon,
       renderAccountsFilterDropdown,
@@ -1199,7 +1159,6 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
           sources: selectedAggregatorRow.aggregationSources,
           clusterId,
           baseFactoriesMapping,
-          navigate,
           stacked: true,
         })}
       </div>
@@ -1322,7 +1281,6 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
                   accountBindings: selectedRow.accountBindings,
                   clusterId,
                   baseFactoriesMapping,
-                  navigate,
                   token,
                 })}
               </Descriptions.Item>
