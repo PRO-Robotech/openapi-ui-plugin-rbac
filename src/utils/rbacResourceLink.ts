@@ -18,6 +18,46 @@ export const RBAC_NAVIGATION_QUERY = {
   fieldSelector: 'metadata.name=navigation',
 } as const
 
+const getPluginBasePath = (pathname: string) => {
+  const segments = pathname.split('/').filter(Boolean)
+
+  if (segments.at(-3) === 'roles') {
+    return `/${segments.slice(0, -3).join('/')}`
+  }
+
+  if (segments.at(-2) === 'clusterroles') {
+    return `/${segments.slice(0, -2).join('/')}`
+  }
+
+  if (segments.at(-1) === 'rbac' || segments.at(-1) === 'table') {
+    return `/${segments.slice(0, -1).join('/')}`
+  }
+
+  return pathname
+}
+
+export const getInternalRoleHref = ({ namespace, name }: { namespace: string; name: string }) => {
+  if (!namespace || !name) {
+    return undefined
+  }
+
+  const pathname = typeof window === 'undefined' ? '' : window.location.pathname
+  const basePath = getPluginBasePath(pathname)
+
+  return `${basePath}/roles/${encodeURIComponent(namespace)}/${encodeURIComponent(name)}`
+}
+
+export const getInternalClusterRoleHref = ({ name }: { name: string }) => {
+  if (!name) {
+    return undefined
+  }
+
+  const pathname = typeof window === 'undefined' ? '' : window.location.pathname
+  const basePath = getPluginBasePath(pathname)
+
+  return `${basePath}/clusterroles/${encodeURIComponent(name)}`
+}
+
 const RBAC_RESOURCE_ROUTE_CONFIG: Partial<Record<TRbacNode['type'], TResourceRouteConfig>> = {
   Role: {
     apiGroupVersion: 'rbac.authorization.k8s.io/v1',
@@ -70,6 +110,14 @@ export const getRbacResourceHref = ({
 
   if (resourceConfig.needsNamespace && !node.namespace) {
     return undefined
+  }
+
+  if (node.type === 'Role' && node.namespace) {
+    return getInternalRoleHref({ namespace: node.namespace, name: node.name })
+  }
+
+  if (node.type === 'ClusterRole') {
+    return getInternalClusterRoleHref({ name: node.name })
   }
 
   const runtimeFactoryConfig = getRuntimeFactoryConfig()

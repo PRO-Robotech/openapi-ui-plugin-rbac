@@ -38,9 +38,6 @@ export const RbacRoleDetailsModalContent: FC<TRbacRoleDetailsModalContentProps> 
       <Styled.SummaryRow>
         <Tag>{data.kind || 'Role'}</Tag>
         {data.namespace && <Tag>{data.namespace}</Tag>}
-        {data.aggregated && <Tag color="blue">{`aggregation sources: ${(data.aggregationSources ?? []).length}`}</Tag>}
-        {Array.isArray(data.bindings) && <Tag>{`bindings: ${data.bindings.length}`}</Tag>}
-        <Tag>{`rules: ${data.rules.length}`}</Tag>
       </Styled.SummaryRow>
 
       {data.resourceGroups.map(group => (
