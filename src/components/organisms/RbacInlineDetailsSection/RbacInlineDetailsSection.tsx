@@ -5,16 +5,8 @@ import { Alert, Button, Card, Empty, Flex, Select, Spin, Typography, theme } fro
 import { useRbacRoleDetailsQuery } from 'hooks/useRbacRoleDetailsQuery'
 import type { TNonResourceUrlList, TRbacNode, TRbacQueryPayload } from 'localTypes/rbacGraph'
 import { RbacRoleDetailsModalContent } from 'components/organisms/RbacGraph/molecules'
-import {
-  applyInlineFilters,
-  EMPTY_RBAC_INLINE_FILTER,
-  type TRbacInlineFilterState,
-} from './filterEngine'
-import {
-  createSelectorRelations,
-  computeSelectorConstraints,
-  toInlineSelectorOptions,
-} from './selectorMetadata'
+import { applyInlineFilters, EMPTY_RBAC_INLINE_FILTER, type TRbacInlineFilterState } from './filterEngine'
+import { createSelectorRelations, computeSelectorConstraints, toInlineSelectorOptions } from './selectorMetadata'
 
 export type TRbacInlineDetailsSectionData = {
   clusterId: string
