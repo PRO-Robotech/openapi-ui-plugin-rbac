@@ -1,5 +1,6 @@
 import React, { FC } from 'react'
-import { RbacTable } from 'components'
+import { RbacPageShell, RbacTable } from 'components'
+import { buildRbacTablePageBreadcrumbs } from 'utils/rbacBreadcrumbs'
 
 type TRbacTablePageProps = {
   cluster?: string
@@ -11,5 +12,9 @@ type TRbacTablePageProps = {
 }
 
 export const RbacTablePage: FC<TRbacTablePageProps> = ({ cluster }) => {
-  return <RbacTable clusterId={cluster ?? ''} />
+  return (
+    <RbacPageShell breadcrumbItems={buildRbacTablePageBreadcrumbs()}>
+      <RbacTable clusterId={cluster ?? ''} />
+    </RbacPageShell>
+  )
 }

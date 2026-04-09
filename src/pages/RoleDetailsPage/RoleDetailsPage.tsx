@@ -6,11 +6,14 @@ import {
   type TDynamicComponentsAppTypeMap,
 } from '@prorobotech/openapi-k8s-toolkit'
 import { useParams } from 'react-router-dom'
+import { RbacPageShell } from 'components'
 import {
   RbacInlineDetailsSection,
   type TRbacInlineDetailsSectionData,
 } from 'components/organisms/RbacInlineDetailsSection'
 import { useTheme } from 'hooks/ThemeModeContext'
+import { buildRoleDetailsBreadcrumbs } from 'utils/rbacBreadcrumbs'
+import { getPluginBasePath } from 'utils/getPluginBasePath'
 import { buildRoleDetailsFactory } from './buildRoleDetailsFactory'
 
 export type TRoleDetailsPageComponentMap = TDynamicComponentsAppTypeMap & {
@@ -24,24 +27,6 @@ type TRoleDetailsPageProps = {
   pluginName?: string
   pluginPath?: string
   toggleTheme?: () => void
-}
-
-const getPluginBasePath = (pathname: string) => {
-  const segments = pathname.split('/').filter(Boolean)
-
-  if (segments.at(-3) === 'roles') {
-    return `/${segments.slice(0, -3).join('/')}`
-  }
-
-  if (segments.at(-2) === 'clusterroles') {
-    return `/${segments.slice(0, -2).join('/')}`
-  }
-
-  if (segments.at(-1) === 'rbac' || segments.at(-1) === 'table') {
-    return `/${segments.slice(0, -1).join('/')}`
-  }
-
-  return pathname
 }
 
 export const RoleDetailsPage: FC<TRoleDetailsPageProps> = ({ cluster }) => {
@@ -59,6 +44,15 @@ export const RoleDetailsPage: FC<TRoleDetailsPageProps> = ({ cluster }) => {
   const roleNamespace = namespace ?? ''
   const roleName = name ?? ''
   const basePath = useMemo(() => getPluginBasePath(typeof window === 'undefined' ? '' : window.location.pathname), [])
+  const breadcrumbItems = useMemo(
+    () =>
+      buildRoleDetailsBreadcrumbs({
+        clusterId,
+        namespace: roleNamespace,
+        roleName,
+      }),
+    [clusterId, roleName, roleNamespace],
+  )
 
   const factoryData = useMemo(
     () =>
@@ -80,7 +74,7 @@ export const RoleDetailsPage: FC<TRoleDetailsPageProps> = ({ cluster }) => {
   }
 
   return (
-    <>
+    <RbacPageShell breadcrumbItems={breadcrumbItems}>
       <Typography.Title level={4} style={{ display: 'none' }}>
         Role details
       </Typography.Title>
@@ -91,6 +85,6 @@ export const RoleDetailsPage: FC<TRoleDetailsPageProps> = ({ cluster }) => {
         effectiveReqIndexes={factoryData.effectiveReqIndexes}
         theme={mode}
       />
-    </>
+    </RbacPageShell>
   )
 }

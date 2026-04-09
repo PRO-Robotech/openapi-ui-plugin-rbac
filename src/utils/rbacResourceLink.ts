@@ -2,6 +2,7 @@ import { getResourceLink } from '@prorobotech/openapi-k8s-toolkit'
 import type { TNavigationResource } from '@prorobotech/openapi-k8s-toolkit'
 import type { TRbacNode } from 'localTypes/rbacGraph'
 import { getRuntimeFactoryConfig, OPENAPI_UI_BASEPREFIX } from './runtimeConfig'
+import { getPluginBasePath } from './getPluginBasePath'
 
 type TRbacLinkableNode = Pick<TRbacNode, 'type' | 'name' | 'namespace'>
 
@@ -17,24 +18,6 @@ export const RBAC_NAVIGATION_QUERY = {
   plural: 'navigations',
   fieldSelector: 'metadata.name=navigation',
 } as const
-
-const getPluginBasePath = (pathname: string) => {
-  const segments = pathname.split('/').filter(Boolean)
-
-  if (segments.at(-3) === 'roles') {
-    return `/${segments.slice(0, -3).join('/')}`
-  }
-
-  if (segments.at(-2) === 'clusterroles') {
-    return `/${segments.slice(0, -2).join('/')}`
-  }
-
-  if (segments.at(-1) === 'rbac' || segments.at(-1) === 'table') {
-    return `/${segments.slice(0, -1).join('/')}`
-  }
-
-  return pathname
-}
 
 export const getInternalRoleHref = ({ namespace, name }: { namespace: string; name: string }) => {
   if (!namespace || !name) {
