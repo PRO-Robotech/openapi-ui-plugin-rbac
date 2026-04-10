@@ -1,4 +1,5 @@
-import React, { FC, useMemo } from 'react'
+import React, { FC } from 'react'
+import type { TKindWithVersion } from '@prorobotech/openapi-k8s-toolkit'
 import { CheckCircleOutlined, CheckOutlined } from '@ant-design/icons'
 import { Empty, Tag, Typography } from 'antd'
 import type { TRbacRoleDetailsResponse } from 'localTypes/rbacGraph'
@@ -10,25 +11,15 @@ const { Text } = Typography
 
 type TRbacRoleDetailsModalContentProps = {
   data: TRbacRoleDetailsResponse
+  kindsWithVersion: TKindWithVersion[]
   token: TTokenLike
 }
 
-export const RbacRoleDetailsModalContent: FC<TRbacRoleDetailsModalContentProps> = ({ data, token }) => {
-  const kindByResource = useMemo(() => {
-    const map = new Map<string, string>()
-
-    data.resourceGroups.forEach(group => {
-      group.resources.forEach(resource => {
-        const key = resource.resource.split('/')[0]
-        if (!map.has(key) && resource.kind) {
-          map.set(key, resource.kind)
-        }
-      })
-    })
-
-    return map
-  }, [data.resourceGroups])
-
+export const RbacRoleDetailsModalContent: FC<TRbacRoleDetailsModalContentProps> = ({
+  data,
+  kindsWithVersion,
+  token,
+}) => {
   if (data.resourceGroups.length === 0 && data.nonResourceUrls.length === 0) {
     return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No role details were returned for this node." />
   }
@@ -41,10 +32,10 @@ export const RbacRoleDetailsModalContent: FC<TRbacRoleDetailsModalContentProps> 
       </Styled.SummaryRow>
 
       {data.resourceGroups.map(group => (
-        <ApiGroupSection key={group.apiGroup} group={group} token={token} kindByResource={kindByResource} />
+        <ApiGroupSection key={group.apiGroup} group={group} token={token} kindsWithVersion={kindsWithVersion} />
       ))}
 
-      <NonResourceUrlsTable permissions={data.nonResourceUrls} token={token} kindByResource={kindByResource} />
+      <NonResourceUrlsTable permissions={data.nonResourceUrls} token={token} kindsWithVersion={kindsWithVersion} />
 
       <div style={{ paddingTop: 8, borderTop: `1px solid ${token.colorBorder}` }}>
         <Styled.LegendRow>

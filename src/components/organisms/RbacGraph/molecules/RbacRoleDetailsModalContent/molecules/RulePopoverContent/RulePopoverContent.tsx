@@ -1,8 +1,10 @@
 import React, { FC } from 'react'
+import type { TKindWithVersion } from '@prorobotech/openapi-k8s-toolkit'
 import { Tag, Typography } from 'antd'
 import type { TRbacRoleDetailsRuleOrigin } from 'localTypes/rbacGraph'
+import { resolveResourcePresentation } from 'components/organisms/RbacGraph/utils'
 import { hexToRgba } from '../../utils'
-import type { TKindByResource, TMatchContext, TTokenLike } from '../../types'
+import type { TMatchContext, TTokenLike } from '../../types'
 
 const { Text } = Typography
 
@@ -48,15 +50,19 @@ const ValueTag: FC<TValueTagProps> = ({ value, matched = false, token }) => (
 )
 
 type TResourceTagProps = {
+  apiGroups?: string[]
+  kindsWithVersion: TKindWithVersion[]
   resource: string
   matched: boolean
-  kindByResource: TKindByResource
   token: TTokenLike
 }
 
-const ResourceTag: FC<TResourceTagProps> = ({ resource, matched, kindByResource, token }) => {
-  const [parentResource, subresource] = resource.split('/')
-  const displayValue = kindByResource.get(parentResource) ?? parentResource
+const ResourceTag: FC<TResourceTagProps> = ({ apiGroups, kindsWithVersion, resource, matched, token }) => {
+  const { displayValue, subresource } = resolveResourcePresentation({
+    apiGroups,
+    kindsWithVersion,
+    resource,
+  })
 
   return (
     <Tag
@@ -94,86 +100,102 @@ const FieldSection: FC<TFieldSectionProps> = ({ label, token, children }) => (
 type TRulePopoverContentProps = {
   origins: TRbacRoleDetailsRuleOrigin[]
   matchContext: TMatchContext
-  kindByResource: TKindByResource
+  kindsWithVersion: TKindWithVersion[]
   token: TTokenLike
 }
 
-export const RulePopoverContent: FC<TRulePopoverContentProps> = ({ origins, matchContext, kindByResource, token }) => (
+export const RulePopoverContent: FC<TRulePopoverContentProps> = ({
+  origins,
+  matchContext,
+  kindsWithVersion,
+  token,
+}) => (
   <div style={{ maxWidth: 420, maxHeight: 400, overflow: 'auto' }}>
-    {origins.map((origin, index) => (
-      <div
-        key={`${origin.sourceObjectUID ?? 'rule'}-${origin.sourceRuleIndex ?? index}`}
-        style={{
-          paddingTop: index === 0 ? 0 : 8,
-          marginTop: index === 0 ? 0 : 8,
-          borderTop: index === 0 ? 'none' : `1px solid ${token.colorBorder}`,
-        }}
-      >
-        {origins.length > 1 && (
-          <Text type="secondary" style={{ fontSize: 10 }}>
-            Rule {index + 1} of {origins.length}
-          </Text>
-        )}
+    {origins.map((origin, index) => {
+      let apiGroups: string[] | undefined
 
-        {(origin.apiGroups?.length ?? 0) > 0 && (
-          <FieldSection label="apiGroups" token={token}>
-            {origin.apiGroups!.map(value => (
+      if (origin.apiGroups && origin.apiGroups.length > 0) {
+        apiGroups = origin.apiGroups
+      } else if (matchContext.apiGroup) {
+        apiGroups = [matchContext.apiGroup]
+      }
+
+      return (
+        <div
+          key={`${origin.sourceObjectUID ?? 'rule'}-${origin.sourceRuleIndex ?? index}`}
+          style={{
+            paddingTop: index === 0 ? 0 : 8,
+            marginTop: index === 0 ? 0 : 8,
+            borderTop: index === 0 ? 'none' : `1px solid ${token.colorBorder}`,
+          }}
+        >
+          {origins.length > 1 && (
+            <Text type="secondary" style={{ fontSize: 10 }}>
+              Rule {index + 1} of {origins.length}
+            </Text>
+          )}
+
+          {(origin.apiGroups?.length ?? 0) > 0 && (
+            <FieldSection label="apiGroups" token={token}>
+              {origin.apiGroups!.map(value => (
+                <ValueTag
+                  key={`ag-${value}`}
+                  value={value}
+                  matched={value === '*' || value === (matchContext.apiGroup ?? '')}
+                  token={token}
+                />
+              ))}
+            </FieldSection>
+          )}
+
+          {(origin.resources?.length ?? 0) > 0 && (
+            <FieldSection label="resources" token={token}>
+              {origin.resources!.map(resource => (
+                <ResourceTag
+                  key={`res-${resource}`}
+                  apiGroups={apiGroups}
+                  kindsWithVersion={kindsWithVersion}
+                  resource={resource}
+                  matched={resource === '*' || resource === matchContext.resource}
+                  token={token}
+                />
+              ))}
+            </FieldSection>
+          )}
+
+          {(origin.resourceNames?.length ?? 0) > 0 && (
+            <FieldSection label="resourceNames" token={token}>
+              {origin.resourceNames!.map(value => (
+                <ValueTag key={`rn-${value}`} value={value} token={token} />
+              ))}
+            </FieldSection>
+          )}
+
+          {(origin.nonResourceURLs?.length ?? 0) > 0 && (
+            <FieldSection label="nonResourceURLs" token={token}>
+              {origin.nonResourceURLs!.map(value => (
+                <ValueTag
+                  key={`nru-${value}`}
+                  value={value}
+                  matched={value === '*' || value === (matchContext.url ?? '')}
+                  token={token}
+                />
+              ))}
+            </FieldSection>
+          )}
+
+          <FieldSection label="verbs" token={token}>
+            {origin.verbs.map(value => (
               <ValueTag
-                key={`ag-${value}`}
+                key={`verb-${value}`}
                 value={value}
-                matched={value === '*' || value === (matchContext.apiGroup ?? '')}
+                matched={value === '*' || value.toLowerCase() === matchContext.verb.toLowerCase()}
                 token={token}
               />
             ))}
           </FieldSection>
-        )}
-
-        {(origin.resources?.length ?? 0) > 0 && (
-          <FieldSection label="resources" token={token}>
-            {origin.resources!.map(resource => (
-              <ResourceTag
-                key={`res-${resource}`}
-                resource={resource}
-                matched={resource === '*' || resource === matchContext.resource}
-                kindByResource={kindByResource}
-                token={token}
-              />
-            ))}
-          </FieldSection>
-        )}
-
-        {(origin.resourceNames?.length ?? 0) > 0 && (
-          <FieldSection label="resourceNames" token={token}>
-            {origin.resourceNames!.map(value => (
-              <ValueTag key={`rn-${value}`} value={value} token={token} />
-            ))}
-          </FieldSection>
-        )}
-
-        {(origin.nonResourceURLs?.length ?? 0) > 0 && (
-          <FieldSection label="nonResourceURLs" token={token}>
-            {origin.nonResourceURLs!.map(value => (
-              <ValueTag
-                key={`nru-${value}`}
-                value={value}
-                matched={value === '*' || value === (matchContext.url ?? '')}
-                token={token}
-              />
-            ))}
-          </FieldSection>
-        )}
-
-        <FieldSection label="verbs" token={token}>
-          {origin.verbs.map(value => (
-            <ValueTag
-              key={`verb-${value}`}
-              value={value}
-              matched={value === '*' || value.toLowerCase() === matchContext.verb.toLowerCase()}
-              token={token}
-            />
-          ))}
-        </FieldSection>
-      </div>
-    ))}
+        </div>
+      )
+    })}
   </div>
 )

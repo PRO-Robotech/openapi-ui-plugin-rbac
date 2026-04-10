@@ -11,7 +11,7 @@ export const PermissionCell: FC<TPermissionCellProps> = ({
   existsInApi,
   origins,
   token,
-  kindByResource,
+  kindsWithVersion,
   matchValue,
 }) => {
   const [open, setOpen] = useState(false)
@@ -43,7 +43,12 @@ export const PermissionCell: FC<TPermissionCellProps> = ({
   return (
     <Popover
       content={
-        <RulePopoverContent origins={origins} matchContext={matchValue} kindByResource={kindByResource} token={token} />
+        <RulePopoverContent
+          origins={origins}
+          matchContext={matchValue}
+          kindsWithVersion={kindsWithVersion}
+          token={token}
+        />
       }
       title={`Granted by rule${origins.length > 1 ? 's' : ''}`}
       trigger="click"

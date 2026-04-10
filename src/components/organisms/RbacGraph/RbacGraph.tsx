@@ -823,6 +823,7 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
         ) : roleDetailsQuery.data ? (
           <RbacRoleDetailsModalContent
             data={roleDetailsQuery.data}
+            kindsWithVersion={kindsWithVersion}
             token={{
               colorBgContainer: token.colorBgContainer,
               colorBgElevated: token.colorBgElevated,

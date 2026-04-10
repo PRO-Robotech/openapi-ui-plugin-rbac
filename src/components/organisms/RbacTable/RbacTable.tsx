@@ -1128,7 +1128,13 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
       )
     }
     if (primaryRoleDetailsQuery.data) {
-      return <RbacRoleDetailsModalContent data={primaryRoleDetailsQuery.data} token={roleDetailsToken} />
+      return (
+        <RbacRoleDetailsModalContent
+          data={primaryRoleDetailsQuery.data}
+          kindsWithVersion={kindsData?.kindsWithVersion ?? []}
+          token={roleDetailsToken}
+        />
+      )
     }
 
     return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No role details were returned." />

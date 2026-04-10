@@ -4,7 +4,11 @@ export { hasConcreteResourceValues } from './hasConcreteResourceValues'
 export { hasWildcard } from './hasWildcard'
 export { hasWildcardValue } from './hasWildcardValue'
 export { parsePermissionLabel } from './parsePermissionLabel'
-export { shouldShowResolvedResourceBadge, resolveResourceDisplayValue } from './resourceDisplay'
+export {
+  shouldShowResolvedResourceBadge,
+  resolveResourceDisplayValue,
+  resolveResourcePresentation,
+} from './resourceDisplay'
 export { toSortedOptions } from './toSortedOptions'
 export {
   sortValues,
