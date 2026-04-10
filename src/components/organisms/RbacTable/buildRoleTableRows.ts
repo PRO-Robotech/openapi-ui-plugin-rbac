@@ -1,4 +1,4 @@
-import type { TRbacGraph as TGraph, TRbacNode } from 'localTypes/rbacGraph'
+import type { TRbacAssessment, TRbacGraph as TGraph, TRbacNode } from 'localTypes/rbacGraph'
 import { ROLE_NODE_TYPES, SUBJECT_NODE_TYPES } from 'components/organisms/RbacGraph/constants'
 
 export type TTableSubject = {
@@ -46,6 +46,7 @@ export type TRoleTableRow = {
   roleKind: Extract<TRbacNode['type'], 'Role' | 'ClusterRole'>
   roleName: string
   namespace: string
+  assessment?: TRbacAssessment
   aggregated: boolean
   matchedRuleCount: number
   subjectsCount: number
@@ -352,6 +353,7 @@ export const buildRoleTableRows = (graph: TGraph | null): TRoleTableRow[] => {
         roleKind: node.type,
         roleName: node.name,
         namespace: node.namespace ?? 'cluster-wide',
+        assessment: node.assessment,
         aggregated: Boolean(node.aggregated),
         matchedRuleCount: node.matchedRuleRefs?.length ?? 0,
         subjectsCount: subjects.length,

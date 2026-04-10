@@ -3,6 +3,7 @@ import type { TKindWithVersion } from '@prorobotech/openapi-k8s-toolkit'
 import { CheckCircleOutlined, CheckOutlined } from '@ant-design/icons'
 import { Empty, Tag, Typography } from 'antd'
 import type { TRbacRoleDetailsResponse } from 'localTypes/rbacGraph'
+import { RbacAssessmentBar } from 'components/organisms/RbacAssessment'
 import { ApiGroupSection, NonResourceUrlsTable } from './molecules'
 import { Styled } from './styled'
 import type { TTokenLike } from './types'
@@ -30,6 +31,11 @@ export const RbacRoleDetailsModalContent: FC<TRbacRoleDetailsModalContentProps> 
         <Tag>{data.kind || 'Role'}</Tag>
         {data.namespace && <Tag>{data.namespace}</Tag>}
       </Styled.SummaryRow>
+
+      <Styled.AssessmentSection>
+        <Typography.Text strong>Assessment</Typography.Text>
+        <RbacAssessmentBar assessment={data.assessment} size="compact" />
+      </Styled.AssessmentSection>
 
       {data.resourceGroups.map(group => (
         <ApiGroupSection key={group.apiGroup} group={group} token={token} kindsWithVersion={kindsWithVersion} />

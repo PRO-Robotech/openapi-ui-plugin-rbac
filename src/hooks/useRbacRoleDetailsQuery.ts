@@ -1,7 +1,7 @@
 /* eslint-disable no-nested-ternary */
 import { useQuery } from '@tanstack/react-query'
 import axios from 'axios'
-import type { TRbacNode, TRbacQueryPayload, TRbacRoleDetailsResponse } from 'localTypes/rbacGraph'
+import type { TRbacAssessment, TRbacNode, TRbacQueryPayload, TRbacRoleDetailsResponse } from 'localTypes/rbacGraph'
 
 const getRbacRoleDetailsApiUrl = (clusterId: string) =>
   `/api/clusters/${clusterId}/k8s/apis/rbacgraph.in-cloud.io/v1alpha1/rolepermissionsviews`
@@ -70,6 +70,36 @@ type TNewStatus = {
   apiGroups?: TNewApiGroupPermission[]
   nonResourceUrls?: {
     urls?: TNewNonResourceUrlPermission[]
+  }
+  assessment?: {
+    highestSeverity?: string
+    criticalCount?: number
+    highCount?: number
+    mediumCount?: number
+    lowCount?: number
+    totalCount?: number
+    checkIDs?: string[]
+  }
+}
+
+const normalizeAssessment = (assessment?: TNewStatus['assessment']): TRbacAssessment | undefined => {
+  if (!assessment || typeof assessment !== 'object') {
+    return undefined
+  }
+
+  return {
+    highestSeverity:
+      typeof assessment.highestSeverity === 'string' && assessment.highestSeverity.trim().length > 0
+        ? assessment.highestSeverity
+        : undefined,
+    criticalCount: typeof assessment.criticalCount === 'number' ? assessment.criticalCount : 0,
+    highCount: typeof assessment.highCount === 'number' ? assessment.highCount : 0,
+    mediumCount: typeof assessment.mediumCount === 'number' ? assessment.mediumCount : 0,
+    lowCount: typeof assessment.lowCount === 'number' ? assessment.lowCount : 0,
+    totalCount: typeof assessment.totalCount === 'number' ? assessment.totalCount : 0,
+    checkIDs: Array.isArray(assessment.checkIDs)
+      ? assessment.checkIDs.filter(checkID => typeof checkID === 'string')
+      : [],
   }
 }
 
@@ -150,6 +180,7 @@ const normalizeRoleDetailsResponse = (
     resourceGroups,
     nonResourceUrls,
     bindings: [],
+    assessment: normalizeAssessment(status.assessment),
   }
 }
 

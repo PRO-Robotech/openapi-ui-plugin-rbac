@@ -122,6 +122,10 @@ const Subtitle = styled.div`
   white-space: nowrap;
 `
 
+const AssessmentRow = styled.div`
+  margin-top: 8px;
+`
+
 export const Styled = {
   Card,
   BadgeRow,
@@ -132,4 +136,5 @@ export const Styled = {
   Title,
   TitlePrefix,
   Subtitle,
+  AssessmentRow,
 }
