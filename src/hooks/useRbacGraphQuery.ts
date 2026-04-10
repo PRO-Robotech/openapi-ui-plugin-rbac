@@ -6,7 +6,7 @@ export const useRbacGraphQuery = (clusterId: string) =>
   useMutation({
     mutationFn: async (payload: TRbacQueryPayload): Promise<TRbacQueryResponse> => {
       const { data } = await axios.post(
-        `/api/clusters/${clusterId}/k8s/apis/rbacgraph.incloud.io/v1alpha1/rolegraphreviews`,
+        `/api/clusters/${clusterId}/k8s/apis/rbacgraph.in-cloud.io/v1alpha1/rolegraphreviews`,
         payload,
       )
       return {

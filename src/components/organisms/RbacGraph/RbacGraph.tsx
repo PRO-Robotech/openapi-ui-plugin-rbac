@@ -106,7 +106,7 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
     error: nonResourceUrlsError,
   } = useK8sSmartResource<TNonResourceUrlList>({
     cluster: clusterId,
-    apiGroup: 'rbacgraph.incloud.io',
+    apiGroup: 'rbacgraph.in-cloud.io',
     apiVersion: 'v1alpha1',
     plural: 'nonresourceurls',
     isEnabled: Boolean(clusterId),

@@ -4,7 +4,7 @@ import axios from 'axios'
 import type { TRbacNode, TRbacQueryPayload, TRbacRoleDetailsResponse } from 'localTypes/rbacGraph'
 
 const getRbacRoleDetailsApiUrl = (clusterId: string) =>
-  `/api/clusters/${clusterId}/k8s/apis/rbacgraph.incloud.io/v1alpha1/rolepermissionsviews`
+  `/api/clusters/${clusterId}/k8s/apis/rbacgraph.in-cloud.io/v1alpha1/rolepermissionsviews`
 
 type TRoleDetailsSelector = TRbacQueryPayload['spec']['selector']
 type TRoleDetailsMatchMode = TRbacQueryPayload['spec']['matchMode']

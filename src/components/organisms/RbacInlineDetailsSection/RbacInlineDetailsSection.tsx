@@ -84,7 +84,7 @@ export const RbacInlineDetailsSection: FC<TRbacInlineDetailsSectionProps> = ({ d
     error: nonResourceUrlsError,
   } = useK8sSmartResource<TNonResourceUrlList>({
     cluster: data.clusterId,
-    apiGroup: 'rbacgraph.incloud.io',
+    apiGroup: 'rbacgraph.in-cloud.io',
     apiVersion: 'v1alpha1',
     plural: 'nonresourceurls',
     isEnabled: Boolean(data.clusterId),
