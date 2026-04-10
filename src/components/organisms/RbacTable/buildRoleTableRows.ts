@@ -60,7 +60,8 @@ const ROLE_SORT_ORDER: Record<TRoleTableRow['roleKind'], number> = {
   Role: 1,
 }
 
-const toSubjectKey = (node: TRbacNode) => `${node.type}:${node.namespace ?? ''}:${node.name}`
+const toSubjectKey = (subject: Pick<TTableSubject, 'kind' | 'namespace' | 'name'>) =>
+  `${subject.kind}:${subject.namespace ?? ''}:${subject.name}`
 const toBindingKey = (node: TRbacNode) => `${node.type}:${node.namespace ?? ''}:${node.name}`
 const toAggregationKey = (type: TRbacNode['type'], name: string, namespace?: string) =>
   `${type}:${namespace ?? ''}:${name}`
@@ -157,6 +158,31 @@ const buildRuleSummary = (node: TRbacNode): TTableRuleSummaryItem[] => {
   ]
 }
 
+const normalizeTableSubject = ({
+  subjectNode,
+  binding,
+}: {
+  subjectNode: TRbacNode & { type: TTableSubject['kind'] }
+  binding?: TTableBinding
+}): TTableSubject => {
+  const namespace =
+    subjectNode.type === 'ServiceAccount'
+      ? subjectNode.namespace ?? (binding?.kind === 'RoleBinding' ? binding.namespace : undefined)
+      : undefined
+
+  const subject = {
+    kind: subjectNode.type,
+    name: subjectNode.name,
+    namespace,
+    phantom: subjectNode.phantom,
+  }
+
+  return {
+    key: toSubjectKey(subject),
+    ...subject,
+  }
+}
+
 const getAccountScope = ({
   roleNode,
   binding,
@@ -230,13 +256,10 @@ export const buildRoleTableRows = (graph: TGraph | null): TRoleTableRow[] => {
     const subjectNodes = subjectEdgesByBindingId.get(edge.to) ?? []
 
     subjectNodes.forEach(subjectNode => {
-      const subject = {
-        key: toSubjectKey(subjectNode),
-        kind: subjectNode.type as TTableSubject['kind'],
-        name: subjectNode.name,
-        namespace: subjectNode.namespace,
-        phantom: subjectNode.phantom,
-      }
+      const subject = normalizeTableSubject({
+        subjectNode: subjectNode as TRbacNode & { type: TTableSubject['kind'] },
+        binding,
+      })
 
       roleSubjects.set(subject.key, subject)
       roleAccountBindings.set(`${subject.key}:${binding?.key ?? 'orphan'}`, {
