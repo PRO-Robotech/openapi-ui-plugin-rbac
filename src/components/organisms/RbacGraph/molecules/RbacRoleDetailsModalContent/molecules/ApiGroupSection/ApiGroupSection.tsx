@@ -1,19 +1,20 @@
+import type { TKindWithVersion } from '@prorobotech/openapi-k8s-toolkit'
 import React, { FC } from 'react'
 import { AppstoreOutlined, WarningOutlined } from '@ant-design/icons'
 import { Collapse, Tag, Typography } from 'antd'
 import type { TRbacRoleDetailsResourceGroup } from 'localTypes/rbacGraph'
 import { ResourcePermissionsTable } from '../ResourcePermissionsTable'
-import type { TKindByResource, TTokenLike } from '../../types'
+import type { TTokenLike } from '../../types'
 
 const { Text } = Typography
 
 type TApiGroupSectionProps = {
   group: TRbacRoleDetailsResourceGroup
+  kindsWithVersion: TKindWithVersion[]
   token: TTokenLike
-  kindByResource: TKindByResource
 }
 
-export const ApiGroupSection: FC<TApiGroupSectionProps> = ({ group, token, kindByResource }) => {
+export const ApiGroupSection: FC<TApiGroupSectionProps> = ({ group, kindsWithVersion, token }) => {
   const groupMissing = group.existsInApi === false
 
   return (
@@ -55,7 +56,7 @@ export const ApiGroupSection: FC<TApiGroupSectionProps> = ({ group, token, kindB
               <Tag style={{ marginInlineEnd: 0 }}>{group.resources.length} resources</Tag>
             </span>
           ),
-          children: <ResourcePermissionsTable group={group} token={token} kindByResource={kindByResource} />,
+          children: <ResourcePermissionsTable group={group} token={token} kindsWithVersion={kindsWithVersion} />,
         },
       ]}
     />

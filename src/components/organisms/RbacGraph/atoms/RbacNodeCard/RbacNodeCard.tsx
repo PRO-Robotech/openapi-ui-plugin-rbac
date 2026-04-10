@@ -1,7 +1,8 @@
 import React, { FC, memo } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import { theme } from 'antd'
-import type { TRbacNodeType } from 'localTypes/rbacGraph'
+import type { TRbacAssessment, TRbacNodeType } from 'localTypes/rbacGraph'
+import { RbacAssessmentBar } from 'components/organisms/RbacAssessment'
 import { RbacResourceLabel } from '../RbacResourceLabel'
 import { NODE_COLORS, RULE_COUNT_NODE_TYPES } from './constants'
 import { Styled } from './styled'
@@ -13,6 +14,7 @@ type TRbacNodeData = {
   namespace?: string
   aggregated?: boolean
   phantom?: boolean
+  assessment?: TRbacAssessment
   ruleCount: number
   filteredDim: boolean
   focusDim: boolean
@@ -37,6 +39,7 @@ export const RbacNodeCard: FC<TRbacNodeCardProps> = memo(({ data, selected }) =>
     namespace,
     ruleCount,
     phantom,
+    assessment,
     filteredDim,
     focusDim,
     focusRoot,
@@ -57,6 +60,7 @@ export const RbacNodeCard: FC<TRbacNodeCardProps> = memo(({ data, selected }) =>
     transform: 'translate(-50%, -50%)',
   } as const
   const showRuleCount = RULE_COUNT_NODE_TYPES.has(nodeType) && ruleCount > 0
+  const showAssessment = (nodeType === 'Role' || nodeType === 'ClusterRole') && assessment
 
   return (
     <Styled.Card
@@ -85,6 +89,11 @@ export const RbacNodeCard: FC<TRbacNodeCardProps> = memo(({ data, selected }) =>
         />
       </Styled.Title>
       {namespace && <Styled.Subtitle style={{ color: token.colorTextSecondary }}>{namespace}</Styled.Subtitle>}
+      {showAssessment && (
+        <Styled.AssessmentRow>
+          <RbacAssessmentBar assessment={assessment} size="compact" style={{ minWidth: 0, width: '100%' }} />
+        </Styled.AssessmentRow>
+      )}
     </Styled.Card>
   )
 })

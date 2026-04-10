@@ -1,3 +1,4 @@
+import type { TKindWithVersion } from '@prorobotech/openapi-k8s-toolkit'
 import type {
   TRbacRoleDetailsNonResourceUrlPermission,
   TRbacRoleDetailsResourcePermission,
@@ -32,8 +33,6 @@ export type TMatchContext = {
   verb: string
 }
 
-export type TKindByResource = Map<string, string>
-
 export type TPermissionLike = TRbacRoleDetailsResourcePermission | TRbacRoleDetailsNonResourceUrlPermission
 
 export type TPermissionCellProps = {
@@ -42,6 +41,6 @@ export type TPermissionCellProps = {
   existsInApi: boolean | null
   origins: TRbacRoleDetailsRuleOrigin[]
   token: TTokenLike
-  kindByResource: TKindByResource
+  kindsWithVersion: TKindWithVersion[]
   matchValue: TMatchContext
 }

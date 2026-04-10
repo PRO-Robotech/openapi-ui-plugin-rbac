@@ -28,6 +28,14 @@ const SummaryRow = styled.div`
   margin-bottom: 4px;
 `
 
+const AssessmentSection = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 8px;
+`
+
 const PermissionCell = styled.div<TCellProps>`
   min-width: 40px;
   padding: 2px 0;
@@ -71,6 +79,7 @@ const LegendItem = styled.span`
 export const Styled = {
   Container,
   SummaryRow,
+  AssessmentSection,
   PermissionCell,
   DeniedCell,
   LegendRow,

@@ -34,6 +34,16 @@ export type TRbacRuleRef = {
   nonResourceURLs?: string[]
 }
 
+export type TRbacAssessment = {
+  highestSeverity?: string
+  criticalCount: number
+  highCount: number
+  mediumCount: number
+  lowCount: number
+  totalCount: number
+  checkIDs?: string[]
+}
+
 export type TRbacNode = {
   id: string
   type: TRbacNodeType
@@ -42,6 +52,7 @@ export type TRbacNode = {
   aggregated?: boolean
   aggregationSources?: string[]
   matchedRuleRefs?: TRbacRuleRef[]
+  assessment?: TRbacAssessment
   phantom?: boolean
 }
 
@@ -223,4 +234,5 @@ export type TRbacRoleDetailsResponse = {
   resourceGroups: TRbacRoleDetailsResourceGroup[]
   nonResourceUrls: TRbacRoleDetailsNonResourceUrlPermission[]
   bindings?: TRbacRoleDetailsBinding[]
+  assessment?: TRbacAssessment
 }

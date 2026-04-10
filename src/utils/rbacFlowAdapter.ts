@@ -1,5 +1,5 @@
 import type { Node, Edge } from '@xyflow/react'
-import type { TRbacGraph, TRbacEdgeType, TRbacGraphOptions, TRbacNodeType } from 'localTypes/rbacGraph'
+import type { TRbacAssessment, TRbacGraph, TRbacEdgeType, TRbacGraphOptions, TRbacNodeType } from 'localTypes/rbacGraph'
 import type { TRbacLayoutResult, TRoutePoint } from 'utils/rbacForceLayout'
 import { SUBJECT_NODE_TYPES } from 'components/organisms/RbacGraph/constants'
 
@@ -203,6 +203,7 @@ export const buildRbacFlowModel = (
         namespace: node.namespace,
         aggregated: node.aggregated,
         phantom: node.phantom,
+        assessment: node.assessment as TRbacAssessment | undefined,
         matchedRuleRefs: node.matchedRuleRefs,
         ruleCount: node.matchedRuleRefs?.length ?? 0,
         filteredDim: false,

@@ -159,7 +159,13 @@ export const RbacInlineDetailsSection: FC<TRbacInlineDetailsSectionProps> = ({ d
     }
 
     if (filteredData) {
-      return <RbacRoleDetailsModalContent data={filteredData} token={getRoleDetailsToken(token)} />
+      return (
+        <RbacRoleDetailsModalContent
+          data={filteredData}
+          kindsWithVersion={kindsData?.kindsWithVersion ?? []}
+          token={getRoleDetailsToken(token)}
+        />
+      )
     }
 
     return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No RBAC details were returned." />

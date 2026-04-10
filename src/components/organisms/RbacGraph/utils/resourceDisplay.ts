@@ -10,6 +10,26 @@ const sortKinds = (left: TKindWithVersion, right: TKindWithVersion) => {
   return left.kind.localeCompare(right.kind)
 }
 
+const getMatchingKinds = ({
+  apiGroups,
+  kindsWithVersion,
+  value,
+}: {
+  apiGroups?: string[]
+  kindsWithVersion: TKindWithVersion[]
+  value: string
+}) => {
+  const normalizedApiGroups = Array.from(
+    new Set((apiGroups ?? []).map(group => group.trim()).filter(group => group.length > 0 && group !== '*')),
+  )
+  const normalizedValue = normalizeValue(value)
+
+  return kindsWithVersion
+    .filter(kind => normalizeValue(kind.version.resource) === normalizedValue)
+    .filter(kind => normalizedApiGroups.length === 0 || normalizedApiGroups.includes(kind.group))
+    .sort(sortKinds)
+}
+
 export const shouldShowResolvedResourceBadge = (value: string) => {
   const trimmedValue = value.trim()
 
@@ -31,14 +51,37 @@ export const resolveResourceDisplayValue = ({
     return trimmedValue
   }
 
-  const normalizedApiGroups = Array.from(
-    new Set((apiGroups ?? []).map(group => group.trim()).filter(group => group.length > 0 && group !== '*')),
-  )
-  const normalizedValue = normalizeValue(trimmedValue)
-  const matchingKinds = kindsWithVersion
-    .filter(kind => normalizeValue(kind.version.resource) === normalizedValue)
-    .filter(kind => normalizedApiGroups.length === 0 || normalizedApiGroups.includes(kind.group))
-    .sort(sortKinds)
+  const matchingKinds = getMatchingKinds({ apiGroups, kindsWithVersion, value: trimmedValue })
 
   return matchingKinds[0]?.kind ?? trimmedValue
+}
+
+export const resolveResourcePresentation = ({
+  apiGroups,
+  fallbackKind,
+  kindsWithVersion,
+  resource,
+}: {
+  apiGroups?: string[]
+  fallbackKind?: string | null
+  kindsWithVersion: TKindWithVersion[]
+  resource: string
+}) => {
+  const trimmedResource = resource.trim()
+  const slashIndex = trimmedResource.indexOf('/')
+  const parentResource = slashIndex === -1 ? trimmedResource : trimmedResource.slice(0, slashIndex)
+  const subresource = slashIndex === -1 ? undefined : trimmedResource.slice(slashIndex + 1)
+  const resolvedKind =
+    (parentResource &&
+      !parentResource.includes('*') &&
+      getMatchingKinds({ apiGroups, kindsWithVersion, value: parentResource })[0]?.kind) ||
+    fallbackKind ||
+    parentResource
+
+  return {
+    parentResource,
+    subresource,
+    resolvedKind,
+    displayValue: resolvedKind,
+  }
 }

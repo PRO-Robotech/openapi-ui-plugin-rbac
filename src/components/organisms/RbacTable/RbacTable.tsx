@@ -43,6 +43,7 @@ import type {
 } from 'localTypes/rbacGraph'
 import { useRbacGraphQuery } from 'hooks/useRbacGraphQuery'
 import { useRbacRoleDetailsQuery } from 'hooks/useRbacRoleDetailsQuery'
+import { RbacAssessmentBar } from 'components/organisms/RbacAssessment'
 import { RbacResourceLink } from 'components/organisms/RbacGraph/atoms/RbacResourceLink'
 import { RbacResourceLabel } from 'components/organisms/RbacGraph/atoms/RbacResourceLabel'
 import { RbacModalTitleLabel } from 'components/organisms/RbacGraph/atoms'
@@ -941,6 +942,14 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
         },
       },
       {
+        title: 'Assessment',
+        dataIndex: 'assessment',
+        key: 'assessment',
+        width: 200,
+        sorter: (left, right) => (left.assessment?.totalCount ?? 0) - (right.assessment?.totalCount ?? 0),
+        render: (_, row) => <RbacAssessmentBar assessment={row.assessment} size="compact" />,
+      },
+      {
         title: 'Matched Rules',
         dataIndex: 'matchedRuleCount',
         key: 'matchedRuleCount',
@@ -1128,7 +1137,13 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
       )
     }
     if (primaryRoleDetailsQuery.data) {
-      return <RbacRoleDetailsModalContent data={primaryRoleDetailsQuery.data} token={roleDetailsToken} />
+      return (
+        <RbacRoleDetailsModalContent
+          data={primaryRoleDetailsQuery.data}
+          kindsWithVersion={kindsData?.kindsWithVersion ?? []}
+          token={roleDetailsToken}
+        />
+      )
     }
 
     return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No role details were returned." />
@@ -1268,6 +1283,9 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
               <Descriptions.Item label="Namespace">{selectedRow.namespace}</Descriptions.Item>
               <Descriptions.Item label="Accounts">{selectedRow.accountBindings.length}</Descriptions.Item>
               <Descriptions.Item label="Aggregators">{selectedRow.aggregationSourcesCount}</Descriptions.Item>
+              <Descriptions.Item label="Assessment" span={2}>
+                <RbacAssessmentBar assessment={selectedRow.assessment} size="compact" />
+              </Descriptions.Item>
               <Descriptions.Item label="Matched Rules">{selectedRow.matchedRuleCount}</Descriptions.Item>
               <Descriptions.Item label="Aggregated">
                 {selectedRow.aggregated ? (
