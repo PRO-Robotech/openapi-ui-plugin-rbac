@@ -42,7 +42,6 @@ export type TRbacTableSearchNormalizationOptions = {
 const TABLE_SCOPES = new Set<TTableScope>(['cluster-wide', 'narrowed', 'same-ns', 'cross-ns', 'orphan'])
 const MATCH_MODES = new Set<TRbacQueryPayload['spec']['matchMode']>(['any', 'all'])
 const WILDCARD_MODES = new Set<TRbacQueryPayload['spec']['wildcardMode']>(['expand', 'exact'])
-const POD_PHASE_MODES = new Set<TRbacQueryPayload['spec']['podPhaseMode']>(['active', 'running', 'all'])
 
 const uniqueStrings = (values: string[]) => {
   const seen = new Set<string>()
@@ -72,16 +71,6 @@ const parseBooleanParam = (params: URLSearchParams, key: string) => {
   if (value === 'false') return false
 
   return undefined
-}
-
-const parseNumberParam = (params: URLSearchParams, key: string) => {
-  const value = params.get(key)
-  if (!value) return undefined
-
-  const parsed = Number(value)
-  if (!Number.isFinite(parsed) || parsed < 0) return undefined
-
-  return parsed
 }
 
 const getArrayParam = (params: URLSearchParams, key: string) => sanitizeStrings(params.getAll(key))
@@ -128,12 +117,9 @@ export const createDefaultRbacTableSearchState = (): TRbacTableSearchState => ({
 export const areRbacTableSearchStatesEqual = (left: TRbacTableSearchState, right: TRbacTableSearchState) =>
   left.payload.spec.matchMode === right.payload.spec.matchMode &&
   left.payload.spec.wildcardMode === right.payload.spec.wildcardMode &&
-  left.payload.spec.podPhaseMode === right.payload.spec.podPhaseMode &&
   left.payload.spec.filterPhantomAPIs === right.payload.spec.filterPhantomAPIs &&
   left.payload.spec.impersonateUser === right.payload.spec.impersonateUser &&
   left.payload.spec.impersonateGroup === right.payload.spec.impersonateGroup &&
-  left.payload.spec.maxPodsPerSubject === right.payload.spec.maxPodsPerSubject &&
-  left.payload.spec.maxWorkloadsPerPod === right.payload.spec.maxWorkloadsPerPod &&
   left.payload.spec.namespaceScope?.strict === right.payload.spec.namespaceScope?.strict &&
   left.payload.spec.namespaceScope?.namespaces.join('\u0000') ===
     right.payload.spec.namespaceScope?.namespaces.join('\u0000') &&
@@ -160,12 +146,9 @@ export const parseRbacTableSearchParams = (params: URLSearchParams): TRbacTableS
   const namespaceScopeStrict = parseBooleanParam(params, 'namespaceStrict')
   const matchMode = getSingleParam(params, 'matchMode')
   const wildcardMode = getSingleParam(params, 'wildcardMode')
-  const podPhaseMode = getSingleParam(params, 'podPhaseMode')
   const filterPhantomAPIs = parseBooleanParam(params, 'filterPhantomAPIs')
   const impersonateUser = getSingleParam(params, 'impersonateUser')
   const impersonateGroup = getSingleParam(params, 'impersonateGroup')
-  const maxPodsPerSubject = parseNumberParam(params, 'maxPodsPerSubject')
-  const maxWorkloadsPerPod = parseNumberParam(params, 'maxWorkloadsPerPod')
 
   return {
     payload: {
@@ -178,14 +161,9 @@ export const parseRbacTableSearchParams = (params: URLSearchParams): TRbacTableS
         wildcardMode: WILDCARD_MODES.has(wildcardMode as TRbacQueryPayload['spec']['wildcardMode'])
           ? (wildcardMode as TRbacQueryPayload['spec']['wildcardMode'])
           : defaultState.payload.spec.wildcardMode,
-        podPhaseMode: POD_PHASE_MODES.has(podPhaseMode as TRbacQueryPayload['spec']['podPhaseMode'])
-          ? (podPhaseMode as TRbacQueryPayload['spec']['podPhaseMode'])
-          : defaultState.payload.spec.podPhaseMode,
         filterPhantomAPIs: filterPhantomAPIs ?? defaultState.payload.spec.filterPhantomAPIs,
         impersonateUser,
         impersonateGroup,
-        maxPodsPerSubject: maxPodsPerSubject ?? defaultState.payload.spec.maxPodsPerSubject,
-        maxWorkloadsPerPod: maxWorkloadsPerPod ?? defaultState.payload.spec.maxWorkloadsPerPod,
         namespaceScope:
           namespaceScopeNamespaces.length > 0 || namespaceScopeStrict
             ? {
@@ -328,20 +306,12 @@ export const normalizeRbacTableSearchState = (
       wildcardMode: WILDCARD_MODES.has(state.payload.spec.wildcardMode)
         ? state.payload.spec.wildcardMode
         : DEFAULT_PAYLOAD.spec.wildcardMode,
-      podPhaseMode: POD_PHASE_MODES.has(state.payload.spec.podPhaseMode)
-        ? state.payload.spec.podPhaseMode
-        : DEFAULT_PAYLOAD.spec.podPhaseMode,
+      podPhaseMode: DEFAULT_PAYLOAD.spec.podPhaseMode,
       filterPhantomAPIs: state.payload.spec.filterPhantomAPIs,
       impersonateUser: state.payload.spec.impersonateUser?.trim() || undefined,
       impersonateGroup: state.payload.spec.impersonateGroup?.trim() || undefined,
-      maxPodsPerSubject:
-        Number.isFinite(state.payload.spec.maxPodsPerSubject) && state.payload.spec.maxPodsPerSubject >= 0
-          ? state.payload.spec.maxPodsPerSubject
-          : DEFAULT_PAYLOAD.spec.maxPodsPerSubject,
-      maxWorkloadsPerPod:
-        Number.isFinite(state.payload.spec.maxWorkloadsPerPod) && state.payload.spec.maxWorkloadsPerPod >= 0
-          ? state.payload.spec.maxWorkloadsPerPod
-          : DEFAULT_PAYLOAD.spec.maxWorkloadsPerPod,
+      maxPodsPerSubject: DEFAULT_PAYLOAD.spec.maxPodsPerSubject,
+      maxWorkloadsPerPod: DEFAULT_PAYLOAD.spec.maxWorkloadsPerPod,
       namespaceScope:
         namespaceScopeNamespaces.length > 0 || namespaceScopeStrict
           ? {
@@ -391,18 +361,6 @@ export const serializeRbacTableSearchParams = (
     params.set('filterPhantomAPIs', String(spec.filterPhantomAPIs))
   }
 
-  if (spec.podPhaseMode !== DEFAULT_PAYLOAD.spec.podPhaseMode) {
-    params.set('podPhaseMode', spec.podPhaseMode)
-  }
-
-  if (spec.maxPodsPerSubject !== DEFAULT_PAYLOAD.spec.maxPodsPerSubject) {
-    params.set('maxPodsPerSubject', String(spec.maxPodsPerSubject))
-  }
-
-  if (spec.maxWorkloadsPerPod !== DEFAULT_PAYLOAD.spec.maxWorkloadsPerPod) {
-    params.set('maxWorkloadsPerPod', String(spec.maxWorkloadsPerPod))
-  }
-
   if (spec.namespaceScope?.strict) {
     params.set('namespaceStrict', 'true')
   }
@@ -434,9 +392,6 @@ export const hasNonDefaultRequestState = (
       spec.matchMode !== DEFAULT_PAYLOAD.spec.matchMode ||
       spec.wildcardMode !== DEFAULT_PAYLOAD.spec.wildcardMode ||
       spec.filterPhantomAPIs !== DEFAULT_PAYLOAD.spec.filterPhantomAPIs ||
-      spec.podPhaseMode !== DEFAULT_PAYLOAD.spec.podPhaseMode ||
-      spec.maxPodsPerSubject !== DEFAULT_PAYLOAD.spec.maxPodsPerSubject ||
-      spec.maxWorkloadsPerPod !== DEFAULT_PAYLOAD.spec.maxWorkloadsPerPod ||
       (spec.namespaceScope?.namespaces.length ?? 0) > 0 ||
       Boolean(spec.namespaceScope?.strict) ||
       Boolean(spec.impersonateUser) ||

@@ -1188,6 +1188,7 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
             value={payload}
             selectorLoading={kindsLoading || nonResourceUrlsLoading}
             selectorOptions={selectorOptions}
+            showRuntimeLimits={false}
             collapseSignal={collapseSignal}
             onSelectorChange={(patch, changedKey) =>
               handleSelectorChange({ ...selectorSelection, ...patch }, changedKey)

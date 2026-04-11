@@ -679,6 +679,7 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
             value={payload}
             selectorLoading={kindsLoading || nonResourceUrlsLoading}
             selectorOptions={selectorOptions}
+            showRuntimeLimits
             onSelectorChange={(patch, changedKey) =>
               handleSelectorChange({ ...selectorSelection, ...patch }, changedKey)
             }
