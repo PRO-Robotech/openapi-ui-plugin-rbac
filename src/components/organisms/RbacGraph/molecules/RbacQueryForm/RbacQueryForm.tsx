@@ -82,6 +82,7 @@ type TRbacQueryFormProps = {
   onReset: () => void
   loading: boolean
   collapseSignal?: number
+  showRuntimeLimits?: boolean
 }
 
 export const RbacQueryForm: FC<TRbacQueryFormProps> = ({
@@ -94,11 +95,14 @@ export const RbacQueryForm: FC<TRbacQueryFormProps> = ({
   onReset,
   loading,
   collapseSignal = 0,
+  showRuntimeLimits = true,
 }) => {
   const { token } = theme.useToken()
   const { spec } = value
   const { selector } = spec
-  const defaultActiveSectionKeys = ['primary-selectors', 'scope-identity', 'runtime-limits']
+  const defaultActiveSectionKeys = showRuntimeLimits
+    ? ['primary-selectors', 'scope-identity', 'runtime-limits']
+    : ['primary-selectors', 'scope-identity']
   const [activeSectionKeys, setActiveSectionKeys] = useState<string[]>(defaultActiveSectionKeys)
 
   const normalizeActiveKeys = useCallback((keys: string | string[]) => (Array.isArray(keys) ? keys : [keys]), [])
@@ -121,6 +125,12 @@ export const RbacQueryForm: FC<TRbacQueryFormProps> = ({
       setActiveSectionKeys([])
     }
   }, [collapseSignal])
+
+  useEffect(() => {
+    if (!showRuntimeLimits) {
+      setActiveSectionKeys(prev => prev.filter(key => key !== 'runtime-limits'))
+    }
+  }, [showRuntimeLimits])
 
   const sectionLabelOptions = useMemo<TSectionLabelOptions>(
     () => ({
@@ -325,60 +335,67 @@ export const RbacQueryForm: FC<TRbacQueryFormProps> = ({
           </Styled.SectionGrid>
         ),
       },
-      {
-        key: 'runtime-limits',
-        label: createSectionLabel(
-          {
-            icon: <ControlOutlined />,
-            title: 'Runtime limits',
-            activeCount: getRuntimeLimitsCount(spec),
-            panelKey: 'runtime-limits',
-            isExpanded: activeSectionKeys.includes('runtime-limits'),
-            onToggle: toggleSection,
-          },
-          sectionLabelOptions,
-        ),
-        collapsible: 'icon',
-        children: (
-          <Styled.SectionGrid>
-            <Styled.FormRow>
-              <Styled.Label $color={token.colorText}>Pod Phase Mode</Styled.Label>
-              <Select value={spec.podPhaseMode} onChange={v => onChange(updateSpec(value, { podPhaseMode: v }))}>
-                <Select.Option value="active">Active</Select.Option>
-                <Select.Option value="running">Running</Select.Option>
-                <Select.Option value="all">All</Select.Option>
-              </Select>
-            </Styled.FormRow>
+      ...(showRuntimeLimits
+        ? [
+            {
+              key: 'runtime-limits',
+              label: createSectionLabel(
+                {
+                  icon: <ControlOutlined />,
+                  title: 'Runtime limits',
+                  activeCount: getRuntimeLimitsCount(spec),
+                  panelKey: 'runtime-limits',
+                  isExpanded: activeSectionKeys.includes('runtime-limits'),
+                  onToggle: toggleSection,
+                },
+                sectionLabelOptions,
+              ),
+              collapsible: 'icon' as const,
+              children: (
+                <Styled.SectionGrid>
+                  <Styled.FormRow>
+                    <Styled.Label $color={token.colorText}>Pod Phase Mode</Styled.Label>
+                    <Select value={spec.podPhaseMode} onChange={v => onChange(updateSpec(value, { podPhaseMode: v }))}>
+                      <Select.Option value="active">Active</Select.Option>
+                      <Select.Option value="running">Running</Select.Option>
+                      <Select.Option value="all">All</Select.Option>
+                    </Select>
+                  </Styled.FormRow>
 
-            <Styled.FormRow>
-              <Styled.Label $color={token.colorText}>Max Pods per Subject</Styled.Label>
-              <InputNumber
-                min={0}
-                value={spec.maxPodsPerSubject}
-                onChange={v => onChange(updateSpec(value, { maxPodsPerSubject: v ?? DEFAULT_SPEC.maxPodsPerSubject }))}
-                style={{ width: '100%' }}
-              />
-            </Styled.FormRow>
+                  <Styled.FormRow>
+                    <Styled.Label $color={token.colorText}>Max Pods per Subject</Styled.Label>
+                    <InputNumber
+                      min={0}
+                      value={spec.maxPodsPerSubject}
+                      onChange={v =>
+                        onChange(updateSpec(value, { maxPodsPerSubject: v ?? DEFAULT_SPEC.maxPodsPerSubject }))
+                      }
+                      style={{ width: '100%' }}
+                    />
+                  </Styled.FormRow>
 
-            <Styled.FormRow>
-              <Styled.Label $color={token.colorText}>Max Workloads per Pod</Styled.Label>
-              <InputNumber
-                min={0}
-                value={spec.maxWorkloadsPerPod}
-                onChange={v =>
-                  onChange(updateSpec(value, { maxWorkloadsPerPod: v ?? DEFAULT_SPEC.maxWorkloadsPerPod }))
-                }
-                style={{ width: '100%' }}
-              />
-            </Styled.FormRow>
-          </Styled.SectionGrid>
-        ),
-      },
+                  <Styled.FormRow>
+                    <Styled.Label $color={token.colorText}>Max Workloads per Pod</Styled.Label>
+                    <InputNumber
+                      min={0}
+                      value={spec.maxWorkloadsPerPod}
+                      onChange={v =>
+                        onChange(updateSpec(value, { maxWorkloadsPerPod: v ?? DEFAULT_SPEC.maxWorkloadsPerPod }))
+                      }
+                      style={{ width: '100%' }}
+                    />
+                  </Styled.FormRow>
+                </Styled.SectionGrid>
+              ),
+            },
+          ]
+        : []),
     ],
     [
       onChange,
       onSelectorChange,
       activeSectionKeys,
+      showRuntimeLimits,
       sectionLabelOptions,
       selector,
       selectorLoading,

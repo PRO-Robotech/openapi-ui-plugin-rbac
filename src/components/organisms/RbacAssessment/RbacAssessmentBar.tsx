@@ -60,18 +60,18 @@ export const RbacAssessmentBar: FC<TRbacAssessmentBarProps> = ({ assessment, siz
   } as const
 
   const tooltipContent = (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <Typography.Text style={{ color: token.colorWhite }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, color: token.colorText }}>
+      <Typography.Text style={{ color: token.colorText }}>
         Highest severity: {assessment?.highestSeverity?.toLowerCase() ?? 'none'}
       </Typography.Text>
       {segments.map(segment => (
-        <Typography.Text key={segment.key} style={{ color: token.colorWhite }}>
+        <Typography.Text key={segment.key} style={{ color: token.colorText }}>
           {segment.label}: {segment.count}
         </Typography.Text>
       ))}
-      <Typography.Text style={{ color: token.colorWhite }}>Total: {assessment?.totalCount ?? 0}</Typography.Text>
+      <Typography.Text style={{ color: token.colorText }}>Total: {assessment?.totalCount ?? 0}</Typography.Text>
       {assessment?.checkIDs && assessment.checkIDs.length > 0 && (
-        <Typography.Text style={{ color: token.colorWhite }}>Checks: {assessment.checkIDs.join(', ')}</Typography.Text>
+        <Typography.Text style={{ color: token.colorText }}>Checks: {assessment.checkIDs.join(', ')}</Typography.Text>
       )}
     </div>
   )

@@ -6,6 +6,7 @@ export { hasWildcardValue } from './hasWildcardValue'
 export { parsePermissionLabel } from './parsePermissionLabel'
 export {
   shouldShowResolvedResourceBadge,
+  resolveKindValue,
   resolveResourceDisplayValue,
   resolveResourcePresentation,
 } from './resourceDisplay'
