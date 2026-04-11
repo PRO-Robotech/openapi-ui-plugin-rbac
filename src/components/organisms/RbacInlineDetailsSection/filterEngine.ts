@@ -154,8 +154,14 @@ const filterNonResourceUrls = (
 export const applyInlineFilters = (
   data: TRbacRoleDetailsResponse,
   filter: TRbacInlineFilterState,
-): TRbacRoleDetailsResponse => ({
-  ...data,
-  resourceGroups: filterResourceGroups(data.resourceGroups, filter),
-  nonResourceUrls: filterNonResourceUrls(data.nonResourceUrls, filter),
-})
+): TRbacRoleDetailsResponse => {
+  const hasResourceFilter =
+    filter.apiGroups.length > 0 || filter.resources.length > 0 || filter.resourceNames.length > 0
+  const hasNonResourceFilter = filter.nonResourceURLs.length > 0
+
+  return {
+    ...data,
+    resourceGroups: hasNonResourceFilter ? [] : filterResourceGroups(data.resourceGroups, filter),
+    nonResourceUrls: hasResourceFilter ? [] : filterNonResourceUrls(data.nonResourceUrls, filter),
+  }
+}

@@ -1,12 +1,16 @@
 import React, { FC, useCallback, useMemo, useState } from 'react'
 import { ClearOutlined, FilterOutlined } from '@ant-design/icons'
-import { useKindsRaw, useK8sSmartResource } from '@prorobotech/openapi-k8s-toolkit'
+import { useKindsRaw } from '@prorobotech/openapi-k8s-toolkit'
 import { Alert, Button, Card, Empty, Flex, Select, Spin, Typography, theme } from 'antd'
 import { useRbacRoleDetailsQuery } from 'hooks/useRbacRoleDetailsQuery'
-import type { TNonResourceUrlList, TRbacNode, TRbacQueryPayload } from 'localTypes/rbacGraph'
+import type { TRbacNode, TRbacQueryPayload } from 'localTypes/rbacGraph'
 import { RbacRoleDetailsModalContent } from 'components/organisms/RbacGraph/molecules'
-import { applyInlineFilters, EMPTY_RBAC_INLINE_FILTER, type TRbacInlineFilterState } from './filterEngine'
-import { createSelectorRelations, computeSelectorConstraints, toInlineSelectorOptions } from './selectorMetadata'
+import {
+  applyInlineFilters,
+  computeAvailableOptions,
+  EMPTY_RBAC_INLINE_FILTER,
+  type TRbacInlineFilterState,
+} from './filterEngine'
 
 export type TRbacInlineDetailsSectionData = {
   clusterId: string
@@ -78,18 +82,6 @@ export const RbacInlineDetailsSection: FC<TRbacInlineDetailsSectionProps> = ({ d
     cluster: data.clusterId,
     isEnabled: Boolean(data.clusterId),
   })
-  const {
-    data: nonResourceUrlsData,
-    isLoading: nonResourceUrlsLoading,
-    error: nonResourceUrlsError,
-  } = useK8sSmartResource<TNonResourceUrlList>({
-    cluster: data.clusterId,
-    apiGroup: 'rbacgraph.in-cloud.io',
-    apiVersion: 'v1alpha1',
-    plural: 'nonresourceurls',
-    isEnabled: Boolean(data.clusterId),
-  })
-
   const node = useMemo<Pick<TRbacNode, 'type' | 'name' | 'namespace'>>(
     () => ({
       type: data.kind,
@@ -102,7 +94,7 @@ export const RbacInlineDetailsSection: FC<TRbacInlineDetailsSectionProps> = ({ d
   const roleDetailsQuery = useRbacRoleDetailsQuery({
     clusterId: data.clusterId,
     node,
-    selector: filter,
+    selector: EMPTY_RBAC_INLINE_FILTER,
     matchMode: defaultQueryBehavior.matchMode,
     wildcardMode: defaultQueryBehavior.wildcardMode,
     filterPhantomAPIs: defaultQueryBehavior.filterPhantomAPIs,
@@ -113,25 +105,11 @@ export const RbacInlineDetailsSection: FC<TRbacInlineDetailsSectionProps> = ({ d
   const hasNonResourceFilter = filter.nonResourceURLs.length > 0
   const hasAnyFilter = hasResourceFilter || hasNonResourceFilter || filter.verbs.length > 0
 
-  const selectorRelations = useMemo(
-    () => createSelectorRelations(kindsData?.kindsWithVersion ?? [], nonResourceUrlsData?.items ?? []),
-    [kindsData?.kindsWithVersion, nonResourceUrlsData?.items],
-  )
-
   const selectorOptions = useMemo(() => {
-    const selectorMetadataSettled = !kindsLoading && !nonResourceUrlsLoading
+    if (!roleDetailsQuery.data) return defaultSelectorOptions
 
-    if (!selectorMetadataSettled) return defaultSelectorOptions
-
-    return toInlineSelectorOptions(
-      computeSelectorConstraints({
-        hasResourceFilters: hasResourceFilter,
-        hasNonResourceFilters: hasNonResourceFilter,
-        relations: selectorRelations,
-        selection: filter,
-      }),
-    )
-  }, [filter, hasNonResourceFilter, hasResourceFilter, kindsLoading, nonResourceUrlsLoading, selectorRelations])
+    return computeAvailableOptions(roleDetailsQuery.data, filter)
+  }, [filter, roleDetailsQuery.data])
 
   const filteredData = useMemo(() => {
     if (!roleDetailsQuery.data) return null
@@ -224,7 +202,7 @@ export const RbacInlineDetailsSection: FC<TRbacInlineDetailsSectionProps> = ({ d
           allowClear
           loading={kindsLoading}
           mode="multiple"
-          disabled={hasNonResourceFilter}
+          disabled={hasNonResourceFilter || apiGroupOptions.length === 0}
           maxTagCount={1}
           options={apiGroupOptions}
           placeholder="API Group"
@@ -238,7 +216,7 @@ export const RbacInlineDetailsSection: FC<TRbacInlineDetailsSectionProps> = ({ d
           allowClear
           loading={kindsLoading}
           mode="multiple"
-          disabled={hasNonResourceFilter}
+          disabled={hasNonResourceFilter || selectorOptions.resources.length === 0}
           maxTagCount={1}
           options={selectorOptions.resources.map(value => ({ label: value, value }))}
           placeholder="Resource"
@@ -250,8 +228,9 @@ export const RbacInlineDetailsSection: FC<TRbacInlineDetailsSectionProps> = ({ d
         />
         <Select
           allowClear
-          loading={kindsLoading || nonResourceUrlsLoading}
-          mode="tags"
+          loading={kindsLoading}
+          mode="multiple"
+          disabled={selectorOptions.verbs.length === 0}
           maxTagCount={1}
           options={selectorOptions.verbs.map(value => ({ label: value, value }))}
           placeholder="Verb"
@@ -263,22 +242,9 @@ export const RbacInlineDetailsSection: FC<TRbacInlineDetailsSectionProps> = ({ d
         />
         <Select
           allowClear
-          mode="tags"
-          disabled={hasNonResourceFilter}
-          maxTagCount={1}
-          placeholder="Resource Name"
-          popupMatchSelectWidth={false}
-          showSearch
-          style={{ width: 200 }}
-          tokenSeparators={[' ', ',']}
-          value={filter.resourceNames}
-          onChange={values => updateFilter('resourceNames', values)}
-        />
-        <Select
-          allowClear
-          loading={nonResourceUrlsLoading}
-          mode="tags"
-          disabled={hasResourceFilter}
+          loading={roleDetailsQuery.isLoading}
+          mode="multiple"
+          disabled={hasResourceFilter || selectorOptions.nonResourceURLs.length === 0}
           maxTagCount={1}
           options={selectorOptions.nonResourceURLs.map(value => ({ label: value, value }))}
           placeholder="Non-Resource URL"
@@ -295,15 +261,6 @@ export const RbacInlineDetailsSection: FC<TRbacInlineDetailsSectionProps> = ({ d
           type="error"
           message="Error while loading Kubernetes kinds"
           description={kindsError.message}
-          style={{ marginBottom: 16 }}
-        />
-      )}
-
-      {nonResourceUrlsError && (
-        <Alert
-          type="error"
-          message="Error while loading non-resource URLs"
-          description={typeof nonResourceUrlsError === 'string' ? nonResourceUrlsError : nonResourceUrlsError.message}
           style={{ marginBottom: 16 }}
         />
       )}
