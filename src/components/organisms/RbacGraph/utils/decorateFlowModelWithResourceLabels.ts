@@ -1,7 +1,17 @@
 import { TKindWithVersion } from '@prorobotech/openapi-k8s-toolkit'
-import type { TRbacNode, TFlowModel } from 'localTypes/rbacGraph'
+import type { TRbacNode, TRbacRuleRef, TFlowModel } from 'localTypes/rbacGraph'
 import { parsePermissionLabel } from './parsePermissionLabel'
 import { resolveResourceDisplayValue, shouldShowResolvedResourceBadge } from './resourceDisplay'
+
+const getApiGroupsFromRuleRefs = (ruleRefs?: TRbacRuleRef[]) =>
+  Array.from(
+    new Set(
+      (ruleRefs ?? [])
+        .flatMap(ruleRef => ruleRef.apiGroups ?? [])
+        .map(group => group.trim())
+        .filter(group => group.length > 0 && group !== '*'),
+    ),
+  )
 
 export const decorateFlowModelWithResourceLabels = (
   model: TFlowModel,
@@ -14,11 +24,16 @@ export const decorateFlowModelWithResourceLabels = (
       label: string
       nodeType?: TRbacNode['type']
       typeLabel: string
+      matchedRuleRefs?: TRbacRuleRef[]
     }
 
     if (data.nodeType === 'permission') {
       const { verb, target } = parsePermissionLabel(data.label)
-      const titleValue = resolveResourceDisplayValue({ kindsWithVersion, value: target })
+      const titleValue = resolveResourceDisplayValue({
+        apiGroups: getApiGroupsFromRuleRefs(data.matchedRuleRefs),
+        kindsWithVersion,
+        value: target,
+      })
 
       return {
         ...node,
