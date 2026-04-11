@@ -114,7 +114,10 @@ test('hides non-resource results when a resource-side filter is active', () => {
   )
 
   assert.equal(filtered.resourceGroups.length, 1)
-  assert.deepEqual(filtered.resourceGroups[0].resources.map(resource => resource.resource), ['deployments'])
+  assert.deepEqual(
+    filtered.resourceGroups[0].resources.map(resource => resource.resource),
+    ['deployments'],
+  )
   assert.deepEqual(filtered.nonResourceUrls, [])
 })
 
@@ -135,5 +138,8 @@ test('hides resource results when a non-resource filter is active', () => {
   )
 
   assert.deepEqual(filtered.resourceGroups, [])
-  assert.deepEqual(filtered.nonResourceUrls.map(permission => permission.url), ['/metrics'])
+  assert.deepEqual(
+    filtered.nonResourceUrls.map(permission => permission.url),
+    ['/metrics'],
+  )
 })
