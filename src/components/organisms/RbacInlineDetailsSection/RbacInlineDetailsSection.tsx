@@ -1,7 +1,8 @@
-import React, { FC, useCallback, useMemo, useState } from 'react'
+import React, { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ClearOutlined, FilterOutlined } from '@ant-design/icons'
 import { useKindsRaw } from '@prorobotech/openapi-k8s-toolkit'
 import { Alert, Button, Card, Empty, Flex, Select, Spin, Typography, theme } from 'antd'
+import { FOOTER_HEIGHT } from 'constants/blocksSizes'
 import { useRbacRoleDetailsQuery } from 'hooks/useRbacRoleDetailsQuery'
 import type { TRbacNode, TRbacQueryPayload } from 'localTypes/rbacGraph'
 import { RbacRoleDetailsModalContent } from 'components/organisms/RbacGraph/molecules'
@@ -63,6 +64,9 @@ const defaultQueryBehavior: Pick<TRbacQueryPayload['spec'], 'matchMode' | 'wildc
   filterPhantomAPIs: false,
 }
 
+const MIN_RESULTS_HEIGHT = 320
+const CARD_BOTTOM_CLEARANCE = 24
+
 const getQueryErrorMessage = (error: unknown) => {
   if (error instanceof Error && error.message.trim().length > 0) {
     return error.message
@@ -73,7 +77,10 @@ const getQueryErrorMessage = (error: unknown) => {
 
 export const RbacInlineDetailsSection: FC<TRbacInlineDetailsSectionProps> = ({ data }) => {
   const { token } = theme.useToken()
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const chromeRef = useRef<HTMLDivElement | null>(null)
   const [filter, setFilter] = useState<TRbacInlineFilterState>(EMPTY_RBAC_INLINE_FILTER)
+  const [resultsHeight, setResultsHeight] = useState(MIN_RESULTS_HEIGHT)
   const {
     data: kindsData,
     isLoading: kindsLoading,
@@ -181,6 +188,37 @@ export const RbacInlineDetailsSection: FC<TRbacInlineDetailsSectionProps> = ({ d
 
   const apiGroupValue = useMemo(() => filter.apiGroups.map(encodeApiGroup), [filter.apiGroups])
 
+  useEffect(() => {
+    const updateResultsHeight = () => {
+      const containerRect = containerRef.current?.getBoundingClientRect()
+      const chromeHeight = chromeRef.current?.getBoundingClientRect().height ?? 0
+
+      if (!containerRect) return
+
+      const viewportHeight = window.innerHeight
+      const nextHeight = Math.max(
+        MIN_RESULTS_HEIGHT,
+        Math.floor(viewportHeight - containerRect.top - chromeHeight - FOOTER_HEIGHT - CARD_BOTTOM_CLEARANCE - 16),
+      )
+
+      setResultsHeight(previous => (previous === nextHeight ? previous : nextHeight))
+    }
+
+    updateResultsHeight()
+
+    const resizeObserver = new ResizeObserver(() => updateResultsHeight())
+
+    if (containerRef.current) resizeObserver.observe(containerRef.current)
+    if (chromeRef.current) resizeObserver.observe(chromeRef.current)
+
+    window.addEventListener('resize', updateResultsHeight)
+
+    return () => {
+      resizeObserver.disconnect()
+      window.removeEventListener('resize', updateResultsHeight)
+    }
+  }, [content, kindsError])
+
   return (
     <Card
       title={data.title ?? 'Permission Details'}
@@ -193,79 +231,93 @@ export const RbacInlineDetailsSection: FC<TRbacInlineDetailsSectionProps> = ({ d
       }
       style={{ marginTop: 24 }}
     >
-      <Flex align="center" gap={8} style={{ marginBottom: 16 }} wrap>
-        <Typography.Text strong>
-          <FilterOutlined style={{ marginInlineEnd: 8 }} />
-          Selectors
-        </Typography.Text>
-        <Select
-          allowClear
-          loading={kindsLoading}
-          mode="multiple"
-          disabled={hasNonResourceFilter || apiGroupOptions.length === 0}
-          maxTagCount={1}
-          options={apiGroupOptions}
-          placeholder="API Group"
-          popupMatchSelectWidth={false}
-          showSearch
-          style={{ width: 200 }}
-          value={apiGroupValue}
-          onChange={values => updateFilter('apiGroups', values.map(decodeApiGroup))}
-        />
-        <Select
-          allowClear
-          loading={kindsLoading}
-          mode="multiple"
-          disabled={hasNonResourceFilter || selectorOptions.resources.length === 0}
-          maxTagCount={1}
-          options={selectorOptions.resources.map(value => ({ label: value, value }))}
-          placeholder="Resource"
-          popupMatchSelectWidth={false}
-          showSearch
-          style={{ width: 200 }}
-          value={filter.resources}
-          onChange={values => updateFilter('resources', values)}
-        />
-        <Select
-          allowClear
-          loading={kindsLoading}
-          mode="multiple"
-          disabled={selectorOptions.verbs.length === 0}
-          maxTagCount={1}
-          options={selectorOptions.verbs.map(value => ({ label: value, value }))}
-          placeholder="Verb"
-          popupMatchSelectWidth={false}
-          showSearch
-          style={{ width: 160 }}
-          value={filter.verbs}
-          onChange={values => updateFilter('verbs', values)}
-        />
-        <Select
-          allowClear
-          loading={roleDetailsQuery.isLoading}
-          mode="multiple"
-          disabled={hasResourceFilter || selectorOptions.nonResourceURLs.length === 0}
-          maxTagCount={1}
-          options={selectorOptions.nonResourceURLs.map(value => ({ label: value, value }))}
-          placeholder="Non-Resource URL"
-          popupMatchSelectWidth={false}
-          showSearch
-          style={{ width: 220 }}
-          value={filter.nonResourceURLs}
-          onChange={values => updateFilter('nonResourceURLs', values)}
-        />
-      </Flex>
+      <div ref={containerRef}>
+        <div ref={chromeRef}>
+          <Flex align="center" gap={8} style={{ marginBottom: 16 }} wrap>
+            <Typography.Text strong>
+              <FilterOutlined style={{ marginInlineEnd: 8 }} />
+              Selectors
+            </Typography.Text>
+            <Select
+              allowClear
+              loading={kindsLoading}
+              mode="multiple"
+              disabled={hasNonResourceFilter || apiGroupOptions.length === 0}
+              maxTagCount={1}
+              options={apiGroupOptions}
+              placeholder="API Group"
+              popupMatchSelectWidth={false}
+              showSearch
+              style={{ width: 200 }}
+              value={apiGroupValue}
+              onChange={values => updateFilter('apiGroups', values.map(decodeApiGroup))}
+            />
+            <Select
+              allowClear
+              loading={kindsLoading}
+              mode="multiple"
+              disabled={hasNonResourceFilter || selectorOptions.resources.length === 0}
+              maxTagCount={1}
+              options={selectorOptions.resources.map(value => ({ label: value, value }))}
+              placeholder="Resource"
+              popupMatchSelectWidth={false}
+              showSearch
+              style={{ width: 200 }}
+              value={filter.resources}
+              onChange={values => updateFilter('resources', values)}
+            />
+            <Select
+              allowClear
+              loading={kindsLoading}
+              mode="multiple"
+              disabled={selectorOptions.verbs.length === 0}
+              maxTagCount={1}
+              options={selectorOptions.verbs.map(value => ({ label: value, value }))}
+              placeholder="Verb"
+              popupMatchSelectWidth={false}
+              showSearch
+              style={{ width: 160 }}
+              value={filter.verbs}
+              onChange={values => updateFilter('verbs', values)}
+            />
+            <Select
+              allowClear
+              loading={roleDetailsQuery.isLoading}
+              mode="multiple"
+              disabled={hasResourceFilter || selectorOptions.nonResourceURLs.length === 0}
+              maxTagCount={1}
+              options={selectorOptions.nonResourceURLs.map(value => ({ label: value, value }))}
+              placeholder="Non-Resource URL"
+              popupMatchSelectWidth={false}
+              showSearch
+              style={{ width: 220 }}
+              value={filter.nonResourceURLs}
+              onChange={values => updateFilter('nonResourceURLs', values)}
+            />
+          </Flex>
 
-      {kindsError && (
-        <Alert
-          type="error"
-          message="Error while loading Kubernetes kinds"
-          description={kindsError.message}
-          style={{ marginBottom: 16 }}
-        />
-      )}
+          {kindsError && (
+            <Alert
+              type="error"
+              message="Error while loading Kubernetes kinds"
+              description={kindsError.message}
+              style={{ marginBottom: 16 }}
+            />
+          )}
+        </div>
 
-      {content}
+        <div
+          style={{
+            height: resultsHeight,
+            minHeight: MIN_RESULTS_HEIGHT,
+            overflow: 'auto',
+            overflowX: 'auto',
+            overflowY: 'auto',
+          }}
+        >
+          {content}
+        </div>
+      </div>
     </Card>
   )
 }
