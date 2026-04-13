@@ -30,7 +30,7 @@ const Card = styled.div<TCardProps>`
   box-shadow: ${({ $isRoot }) => ($isRoot ? '0 0 0 3px rgba(24, 144, 255, 0.4)' : 'none')};
   isolation: isolate;
 
-  &::after {
+  &:after {
     content: '';
     position: absolute;
     inset: 0;
@@ -39,7 +39,6 @@ const Card = styled.div<TCardProps>`
     pointer-events: none;
     z-index: 1;
   }
-
   transition:
     opacity 0.2s,
     box-shadow 0.2s;
