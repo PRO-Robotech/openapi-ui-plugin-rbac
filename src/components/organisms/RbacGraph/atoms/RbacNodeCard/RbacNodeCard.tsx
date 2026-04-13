@@ -3,6 +3,7 @@ import { Handle, Position, type NodeProps } from '@xyflow/react'
 import { theme } from 'antd'
 import type { TRbacAssessment, TRbacNodeType } from 'localTypes/rbacGraph'
 import { RbacAssessmentBar } from 'components/organisms/RbacAssessment'
+import { useTheme } from 'hooks/ThemeModeContext'
 import { RbacResourceLabel } from '../RbacResourceLabel'
 import { NODE_COLORS, RULE_COUNT_NODE_TYPES } from './constants'
 import { Styled } from './styled'
@@ -32,6 +33,7 @@ type TRbacNodeCardProps = NodeProps & {
 // eslint-disable-next-line react/prop-types
 export const RbacNodeCard: FC<TRbacNodeCardProps> = memo(({ data, selected }) => {
   const { token } = theme.useToken()
+  const { mode } = useTheme()
   const {
     label,
     nodeType,
@@ -50,6 +52,7 @@ export const RbacNodeCard: FC<TRbacNodeCardProps> = memo(({ data, selected }) =>
   } = data as unknown as TRbacNodeData
   const borderColor = NODE_COLORS[nodeType] ?? '#475569'
   const isPhantomSubject = nodeType === 'ServiceAccount' && Boolean(phantom)
+  const phantomOverlayColor = mode === 'dark' ? 'rgba(15, 23, 42, 0.34)' : 'rgba(255, 255, 255, 0.44)'
   const hiddenHandleStyle = {
     opacity: 0,
     width: 8,
@@ -65,10 +68,11 @@ export const RbacNodeCard: FC<TRbacNodeCardProps> = memo(({ data, selected }) =>
   return (
     <Styled.Card
       $borderColor={borderColor}
+      $backgroundColor={token.colorBgContainer}
       $dimmed={filteredDim || focusDim}
       $phantom={isPhantomSubject}
+      $phantomOverlayColor={phantomOverlayColor}
       $isRoot={focusRoot || selected}
-      style={{ background: token.colorBgContainer }}
     >
       <Handle type="target" position={Position.Top} id="center" style={hiddenHandleStyle} />
       <Handle type="source" position={Position.Top} id="center" style={hiddenHandleStyle} />

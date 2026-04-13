@@ -445,6 +445,17 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
     })
   }, [clearGraphView, payload, queryMutation])
 
+  const handleOptionsChange = useCallback((nextOptions: TRbacGraphOptions) => {
+    setOptions(nextOptions)
+    setPayload(prev => ({
+      spec: {
+        ...prev.spec,
+        includePods: nextOptions.includePods,
+        includeWorkloads: nextOptions.includeWorkloads,
+      },
+    }))
+  }, [])
+
   const handleReset = useCallback(() => {
     setPayload(DEFAULT_PAYLOAD)
     setOptions(DEFAULT_OPTIONS)
@@ -718,7 +729,7 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
         )}
 
         <Card size="small" styles={{ body: { padding: 0 } }} style={{ marginTop: 8 }}>
-          <RbacGraphToggles value={options} onChange={setOptions} />
+          <RbacGraphToggles value={options} onChange={handleOptionsChange} />
         </Card>
 
         {stats && (

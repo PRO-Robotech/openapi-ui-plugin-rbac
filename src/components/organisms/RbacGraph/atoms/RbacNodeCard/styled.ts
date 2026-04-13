@@ -2,19 +2,19 @@ import styled from 'styled-components'
 
 type TCardProps = {
   $borderColor: string
+  $backgroundColor: string
   $dimmed: boolean
   $phantom: boolean
+  $phantomOverlayColor: string
   $isRoot: boolean
 }
 
 const Card = styled.div<TCardProps>`
-  ${({ $dimmed, $phantom }) => {
+  ${({ $dimmed }) => {
     let opacity = 1
 
     if ($dimmed) {
       opacity = 0.25
-    } else if ($phantom) {
-      opacity = 0.6
     }
 
     return `opacity: ${opacity};`
@@ -25,8 +25,21 @@ const Card = styled.div<TCardProps>`
   border: 2px solid ${({ $borderColor }) => $borderColor};
   border-radius: 8px;
   padding: 8px 12px;
+  background: ${({ $backgroundColor }) => $backgroundColor};
   background-clip: padding-box;
   box-shadow: ${({ $isRoot }) => ($isRoot ? '0 0 0 3px rgba(24, 144, 255, 0.4)' : 'none')};
+  isolation: isolate;
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: ${({ $phantom, $phantomOverlayColor }) => ($phantom ? $phantomOverlayColor : 'transparent')};
+    pointer-events: none;
+    z-index: 1;
+  }
+
   transition:
     opacity 0.2s,
     box-shadow 0.2s;
