@@ -1,7 +1,7 @@
 import React, { FC } from 'react'
 import type { TKindWithVersion } from '@prorobotech/openapi-k8s-toolkit'
 import { CheckCircleOutlined, CheckOutlined } from '@ant-design/icons'
-import { Empty, Tag, Typography } from 'antd'
+import { Empty, Typography } from 'antd'
 import type { TRbacRoleDetailsResponse } from 'localTypes/rbacGraph'
 import { RbacAssessmentBar } from 'components/organisms/RbacAssessment'
 import { ApiGroupSection, NonResourceUrlsTable } from './molecules'
@@ -27,11 +27,6 @@ export const RbacRoleDetailsModalContent: FC<TRbacRoleDetailsModalContentProps> 
 
   return (
     <Styled.Container style={{ color: token.colorText }}>
-      <Styled.SummaryRow>
-        <Tag>{data.kind || 'Role'}</Tag>
-        {data.namespace && <Tag>{data.namespace}</Tag>}
-      </Styled.SummaryRow>
-
       <Styled.AssessmentSection>
         <Typography.Text strong>Assessment</Typography.Text>
         <RbacAssessmentBar assessment={data.assessment} size="compact" />

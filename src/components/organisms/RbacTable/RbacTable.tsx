@@ -1305,12 +1305,7 @@ export const RbacTable: FC<TRbacGraphProps> = ({ clusterId }) => {
               </Descriptions.Item>
             </Descriptions>
 
-            {primaryRoleNode && (
-              <div>
-                <Typography.Title level={5}>{`${primaryRoleNode.type}: ${primaryRoleNode.name}`}</Typography.Title>
-                {primaryRoleContent}
-              </div>
-            )}
+            {primaryRoleNode && <div>{primaryRoleContent}</div>}
           </>
         )}
       </Modal>
