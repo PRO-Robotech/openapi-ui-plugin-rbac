@@ -4,14 +4,18 @@ import { useKindsRaw } from '@prorobotech/openapi-k8s-toolkit'
 import { Alert, Button, Card, Empty, Flex, Select, Spin, Typography, theme } from 'antd'
 import { FOOTER_HEIGHT } from 'constants/blocksSizes'
 import { useRbacRoleDetailsQuery } from 'hooks/useRbacRoleDetailsQuery'
-import type { TRbacNode, TRbacQueryPayload } from 'localTypes/rbacGraph'
+import type { TRbacNode } from 'localTypes/rbacGraph'
 import { RbacRoleDetailsModalContent } from 'components/organisms/RbacGraph/molecules'
 import {
   applyInlineFilters,
   computeAvailableOptions,
   EMPTY_RBAC_INLINE_FILTER,
   type TRbacInlineFilterState,
-} from './filterEngine'
+} from './utils/filterEngine'
+import { getQueryErrorMessage } from './utils/getQueryErrorMessage'
+import { getRoleDetailsToken } from './utils/getRoleDetailsToken'
+import { encodeApiGroup, decodeApiGroup } from './utils/encodeDecodeApiGroup'
+import { defaultSelectorOptions, defaultQueryBehavior, MIN_RESULTS_HEIGHT, CARD_BOTTOM_CLEARANCE } from './constants'
 
 export type TRbacInlineDetailsSectionData = {
   clusterId: string
@@ -25,60 +29,12 @@ type TRbacInlineDetailsSectionProps = {
   data: TRbacInlineDetailsSectionData
 }
 
-const getRoleDetailsToken = (token: ReturnType<typeof theme.useToken>['token']) => ({
-  colorBgContainer: token.colorBgContainer,
-  colorBgElevated: token.colorBgElevated,
-  colorBorder: token.colorBorder,
-  colorBorderSecondary: token.colorBorderSecondary,
-  colorError: token.colorError,
-  colorFillAlter: token.colorFillAlter,
-  colorFillSecondary: token.colorFillSecondary,
-  colorInfo: token.colorInfo,
-  colorPrimary: token.colorPrimary,
-  colorPrimaryBg: token.colorPrimaryBg,
-  colorPrimaryBorder: token.colorPrimaryBorder,
-  colorPrimaryText: token.colorPrimaryText,
-  colorText: token.colorText,
-  colorTextSecondary: token.colorTextSecondary,
-  colorWarning: token.colorWarning,
-  borderRadius: token.borderRadius,
-  boxShadowSecondary: token.boxShadowSecondary,
-  fontFamilyCode: token.fontFamilyCode,
-})
-
-const CORE_SENTINEL = '__core__'
-
-const encodeApiGroup = (value: string) => (value === '' ? CORE_SENTINEL : value)
-const decodeApiGroup = (value: string) => (value === CORE_SENTINEL ? '' : value)
-
-const defaultSelectorOptions = {
-  apiGroups: [],
-  resources: [],
-  verbs: [],
-  nonResourceURLs: [],
-}
-
-const defaultQueryBehavior: Pick<TRbacQueryPayload['spec'], 'matchMode' | 'wildcardMode' | 'filterPhantomAPIs'> = {
-  matchMode: 'any',
-  wildcardMode: 'expand',
-  filterPhantomAPIs: false,
-}
-
-const MIN_RESULTS_HEIGHT = 320
-const CARD_BOTTOM_CLEARANCE = 24
-
-const getQueryErrorMessage = (error: unknown) => {
-  if (error instanceof Error && error.message.trim().length > 0) {
-    return error.message
-  }
-
-  return 'Failed to load RBAC details.'
-}
-
 export const RbacInlineDetailsSection: FC<TRbacInlineDetailsSectionProps> = ({ data }) => {
   const { token } = theme.useToken()
+
   const containerRef = useRef<HTMLDivElement | null>(null)
   const chromeRef = useRef<HTMLDivElement | null>(null)
+
   const [filter, setFilter] = useState<TRbacInlineFilterState>(EMPTY_RBAC_INLINE_FILTER)
   const [resultsHeight, setResultsHeight] = useState(MIN_RESULTS_HEIGHT)
   const {
@@ -89,6 +45,7 @@ export const RbacInlineDetailsSection: FC<TRbacInlineDetailsSectionProps> = ({ d
     cluster: data.clusterId,
     isEnabled: Boolean(data.clusterId),
   })
+
   const node = useMemo<Pick<TRbacNode, 'type' | 'name' | 'namespace'>>(
     () => ({
       type: data.kind,

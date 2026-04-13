@@ -21,13 +21,6 @@ const Container = styled.div`
   }
 `
 
-const SummaryRow = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 4px;
-`
-
 const AssessmentSection = styled.div`
   display: flex;
   flex-direction: column;
@@ -78,7 +71,6 @@ const LegendItem = styled.span`
 
 export const Styled = {
   Container,
-  SummaryRow,
   AssessmentSection,
   PermissionCell,
   DeniedCell,

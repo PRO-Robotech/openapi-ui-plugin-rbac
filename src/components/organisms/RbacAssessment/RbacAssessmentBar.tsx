@@ -38,8 +38,10 @@ const SEGMENT_STYLE: Record<NonNullable<TRbacAssessmentBarProps['size']>, CSSPro
 export const RbacAssessmentBar: FC<TRbacAssessmentBarProps> = ({ assessment, size = 'small', style }) => {
   const { token } = theme.useToken()
   const segments = useMemo(() => buildAssessmentSegments(assessment), [assessment])
+
   const totalCellStyle = TOTAL_CELL_STYLE[size]
   const segmentStyle = SEGMENT_STYLE[size]
+
   const segmentPalette = {
     critical: {
       background: token.colorError,
