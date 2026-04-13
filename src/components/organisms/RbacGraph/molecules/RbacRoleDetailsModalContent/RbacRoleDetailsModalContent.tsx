@@ -1,7 +1,7 @@
 import React, { FC } from 'react'
 import type { TKindWithVersion } from '@prorobotech/openapi-k8s-toolkit'
-import { CheckCircleOutlined, CheckOutlined } from '@ant-design/icons'
 import { Empty, Typography } from 'antd'
+import { CheckCircleOutlined, CheckOutlined } from '@ant-design/icons'
 import type { TRbacRoleDetailsResponse } from 'localTypes/rbacGraph'
 import { RbacAssessmentBar } from 'components/organisms/RbacAssessment'
 import { ApiGroupSection, NonResourceUrlsTable } from './molecules'

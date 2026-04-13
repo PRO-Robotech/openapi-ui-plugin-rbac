@@ -1,7 +1,11 @@
 import styled from 'styled-components'
 import { HEAD_FIRST_ROW, NAV_HEIGHT } from 'constants/blocksSizes'
 
-const NavigationContainer = styled.div<{ $bgColor: string }>`
+type TNavigationContainerProps = {
+  $bgColor: string
+}
+
+const NavigationContainer = styled.div<TNavigationContainerProps>`
   display: flex;
   justify-content: start;
   align-items: center;
