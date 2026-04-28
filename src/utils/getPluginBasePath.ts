@@ -9,7 +9,12 @@ export const getPluginBasePath = (pathname: string) => {
     return `/${segments.slice(0, -2).join('/')}`
   }
 
-  if (segments.at(-1) === 'rbac' || segments.at(-1) === 'table') {
+  if (
+    segments.at(-1) === 'rbac' ||
+    segments.at(-1) === 'table' ||
+    segments.at(-1) === 'reverse' ||
+    segments.at(-1) === 'table-reverse'
+  ) {
     return `/${segments.slice(0, -1).join('/')}`
   }
 

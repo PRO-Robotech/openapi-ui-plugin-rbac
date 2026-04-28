@@ -3,13 +3,18 @@ import type { TKindWithVersion } from '@prorobotech/openapi-k8s-toolkit'
 import { WarningOutlined } from '@ant-design/icons'
 import { Table, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import type { TRbacRoleDetailsResourceGroup, TRbacRoleDetailsResourcePermission } from 'localTypes/rbacGraph'
+import type {
+  TRbacRoleDetailsResourceGroup,
+  TRbacRoleDetailsResourcePermission,
+  TRbacSubjectPermissionGrantGroup,
+} from 'localTypes/rbacGraph'
 import { resolveResourcePresentation } from 'components/organisms/RbacGraph/utils'
 import { RbacResourceLabel } from '../../../../atoms'
 import type { TTokenLike } from '../../types'
 import { getVerbColor, sortVerbs } from '../../utils'
 import { PermissionCell } from '../PermissionCell'
 import { ResourceNamesBadge } from '../ResourceNamesBadge'
+import { GrantSourcesCell } from '../GrantSourcesCell'
 
 const { Text } = Typography
 
@@ -62,10 +67,16 @@ const ResourceLabel: FC<TResourceLabelPRops> = ({ permission, apiGroup, badgeId,
 type TResourcePermissionsTableProps = {
   group: TRbacRoleDetailsResourceGroup
   kindsWithVersion: TKindWithVersion[]
+  subjectGrantGroups?: TRbacSubjectPermissionGrantGroup[]
   token: TTokenLike
 }
 
-export const ResourcePermissionsTable: FC<TResourcePermissionsTableProps> = ({ group, kindsWithVersion, token }) => {
+export const ResourcePermissionsTable: FC<TResourcePermissionsTableProps> = ({
+  group,
+  kindsWithVersion,
+  subjectGrantGroups,
+  token,
+}) => {
   const activeVerbs = useMemo(() => {
     const verbSet = new Set<string>()
 
@@ -76,8 +87,23 @@ export const ResourcePermissionsTable: FC<TResourcePermissionsTableProps> = ({ g
     return sortVerbs(verbSet)
   }, [group.resources])
 
-  const columns = useMemo<ColumnsType<TRbacRoleDetailsResourcePermission>>(
-    () => [
+  const grantsByResource = useMemo(() => {
+    const map = new Map<string, TRbacSubjectPermissionGrantGroup[]>()
+
+    ;(subjectGrantGroups ?? [])
+      .filter(grantGroup => grantGroup.type === 'resource' && (grantGroup.apiGroup ?? '') === group.apiGroup)
+      .forEach(grantGroup => {
+        const key = grantGroup.resource ?? ''
+        const groups = map.get(key) ?? []
+        groups.push(grantGroup)
+        map.set(key, groups)
+      })
+
+    return map
+  }, [group.apiGroup, subjectGrantGroups])
+
+  const columns = useMemo<ColumnsType<TRbacRoleDetailsResourcePermission>>(() => {
+    const baseColumns: ColumnsType<TRbacRoleDetailsResourcePermission> = [
       {
         title: 'Resource',
         key: 'resource',
@@ -100,6 +126,18 @@ export const ResourcePermissionsTable: FC<TResourcePermissionsTableProps> = ({ g
           </span>
         ),
       },
+      ...(subjectGrantGroups
+        ? [
+            {
+              title: 'Granted By',
+              key: 'grantedBy',
+              width: 520,
+              render: (_: unknown, resource: TRbacRoleDetailsResourcePermission) => (
+                <GrantSourcesCell groups={grantsByResource.get(resource.resource) ?? []} />
+              ),
+            },
+          ]
+        : []),
       ...activeVerbs.map(verb => ({
         title: (
           <span style={{ color: getVerbColor(verb, token), fontSize: 11, textTransform: 'uppercase', fontWeight: 600 }}>
@@ -122,9 +160,10 @@ export const ResourcePermissionsTable: FC<TResourcePermissionsTableProps> = ({ g
           />
         ),
       })),
-    ],
-    [activeVerbs, group.apiGroup, kindsWithVersion, token],
-  )
+    ]
+
+    return baseColumns
+  }, [activeVerbs, grantsByResource, group.apiGroup, kindsWithVersion, subjectGrantGroups, token])
 
   return (
     <Table<TRbacRoleDetailsResourcePermission>

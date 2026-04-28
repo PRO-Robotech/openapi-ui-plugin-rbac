@@ -13,10 +13,24 @@ export const buildRbacPageBreadcrumbs = (): TRbacBreadcrumbLink[] => [
   },
 ]
 
+export const buildRbacReversePageBreadcrumbs = (): TRbacBreadcrumbLink[] => [
+  {
+    key: 'rbac-reverse',
+    label: 'RBAC Reverse Graph',
+  },
+]
+
 export const buildRbacTablePageBreadcrumbs = (): TRbacBreadcrumbLink[] => [
   {
     key: 'rbac-table',
     label: 'RBAC Table',
+  },
+]
+
+export const buildRbacReverseTablePageBreadcrumbs = (): TRbacBreadcrumbLink[] => [
+  {
+    key: 'rbac-reverse-table',
+    label: 'RBAC Reverse Table',
   },
 ]
 

@@ -1,5 +1,5 @@
 /* eslint-disable max-lines-per-function */
-import React, { FC, ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
+import React, { ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import {
   AppstoreOutlined,
   ClearOutlined,
@@ -7,12 +7,20 @@ import {
   FilterOutlined,
   PlayCircleOutlined,
   SafetyCertificateOutlined,
+  UserOutlined,
 } from '@ant-design/icons'
-import { Button, Checkbox, Collapse, Input, InputNumber, Select, theme } from 'antd'
+import { Alert, Button, Checkbox, Collapse, Input, InputNumber, Select, theme } from 'antd'
 import type { CollapseProps } from 'antd'
-import type { TRbacQueryPayload } from 'localTypes/rbacGraph'
+import type { TRbacQueryPayload, TRbacReverseQueryPayload, TRbacSubjectKind } from 'localTypes/rbacGraph'
 import { DEFAULT_SPEC } from './constants'
-import { updateSpec, getPrimarySelectorCount, getScopeIdentityCount, getRuntimeLimitsCount } from './utils'
+import {
+  updateSpec,
+  getPrimarySelectorCount,
+  getScopeIdentityCount,
+  getRuntimeLimitsCount,
+  getSubjectCount,
+  type TRbacQueryFormPayload,
+} from './utils'
 import { Styled } from './styled'
 
 type TSectionLabelOptions = {
@@ -67,8 +75,9 @@ type TSelectorPatch = Partial<{
 
 type TSelectorKey = keyof TSelectorPatch
 
-type TRbacQueryFormProps = {
-  value: TRbacQueryPayload
+type TRbacQueryFormProps<TPayload extends TRbacQueryFormPayload> = {
+  value: TPayload
+  queryMode?: 'role' | 'subject'
   selectorLoading: boolean
   selectorOptions: {
     apiGroups: TSelectorOption[]
@@ -77,7 +86,7 @@ type TRbacQueryFormProps = {
     nonResourceURLs: TSelectorOption[]
   }
   onSelectorChange: (patch: TSelectorPatch, changedKey: TSelectorKey) => void
-  onChange: (payload: TRbacQueryPayload) => void
+  onChange: (payload: TPayload) => void
   onSubmit: () => void
   onReset: () => void
   loading: boolean
@@ -85,8 +94,9 @@ type TRbacQueryFormProps = {
   showRuntimeLimits?: boolean
 }
 
-export const RbacQueryForm: FC<TRbacQueryFormProps> = ({
+export const RbacQueryForm = <TPayload extends TRbacQueryFormPayload>({
   value,
+  queryMode = 'role',
   selectorLoading,
   selectorOptions,
   onSelectorChange,
@@ -96,14 +106,20 @@ export const RbacQueryForm: FC<TRbacQueryFormProps> = ({
   loading,
   collapseSignal = 0,
   showRuntimeLimits = true,
-}) => {
+}: TRbacQueryFormProps<TPayload>) => {
   const { token } = theme.useToken()
   const { spec } = value
   const { selector } = spec
-  const defaultActiveSectionKeys = showRuntimeLimits
-    ? ['primary-selectors', 'scope-identity', 'runtime-limits']
-    : ['primary-selectors', 'scope-identity']
+  const isReverseMode = queryMode === 'subject'
+  const reverseSpec = isReverseMode ? (spec as TRbacReverseQueryPayload['spec']) : null
+  const roleSpec = !isReverseMode ? (spec as TRbacQueryPayload['spec']) : null
+  const defaultActiveSectionKeys = useMemo(() => {
+    if (isReverseMode) return ['subject', 'primary-selectors', 'scope-identity']
+    if (showRuntimeLimits) return ['primary-selectors', 'scope-identity', 'runtime-limits']
+    return ['primary-selectors', 'scope-identity']
+  }, [isReverseMode, showRuntimeLimits])
   const [activeSectionKeys, setActiveSectionKeys] = useState<string[]>(defaultActiveSectionKeys)
+  const [showSubjectValidation, setShowSubjectValidation] = useState(false)
 
   const normalizeActiveKeys = useCallback((keys: string | string[]) => (Array.isArray(keys) ? keys : [keys]), [])
 
@@ -132,6 +148,32 @@ export const RbacQueryForm: FC<TRbacQueryFormProps> = ({
     }
   }, [showRuntimeLimits])
 
+  const subjectValidationMessage = useMemo(() => {
+    if (!reverseSpec) return null
+
+    if (!reverseSpec.subject.kind) return 'Select a subject kind before running the reverse graph query.'
+
+    return null
+  }, [reverseSpec])
+
+  const updateSubject = useCallback(
+    (patch: Partial<TRbacReverseQueryPayload['spec']['subject']>) => {
+      if (!reverseSpec) return
+
+      const nextSubject = {
+        ...reverseSpec.subject,
+        ...patch,
+      }
+
+      if (nextSubject.kind !== 'ServiceAccount') {
+        delete nextSubject.namespace
+      }
+
+      onChange(updateSpec(value as TRbacReverseQueryPayload, { subject: nextSubject }) as TPayload)
+    },
+    [onChange, reverseSpec, value],
+  )
+
   const sectionLabelOptions = useMemo<TSectionLabelOptions>(
     () => ({
       colorPrimary: token.colorPrimary,
@@ -143,6 +185,62 @@ export const RbacQueryForm: FC<TRbacQueryFormProps> = ({
 
   const sectionItems = useMemo<CollapseProps['items']>(
     () => [
+      ...(reverseSpec
+        ? [
+            {
+              key: 'subject',
+              label: createSectionLabel(
+                {
+                  icon: <UserOutlined />,
+                  title: 'Subject',
+                  activeCount: getSubjectCount(reverseSpec),
+                  panelKey: 'subject',
+                  isExpanded: activeSectionKeys.includes('subject'),
+                  onToggle: toggleSection,
+                },
+                sectionLabelOptions,
+              ),
+              collapsible: 'icon' as const,
+              children: (
+                <Styled.SectionGrid>
+                  <Styled.FormRow>
+                    <Styled.Label $color={token.colorText}>Subject Kind</Styled.Label>
+                    <Select
+                      allowClear
+                      value={reverseSpec.subject.kind || undefined}
+                      onChange={(kind?: TRbacSubjectKind) => updateSubject({ kind: kind ?? '' })}
+                      placeholder="Select subject kind"
+                      options={[
+                        { value: 'ServiceAccount', label: 'ServiceAccount' },
+                        { value: 'User', label: 'User' },
+                        { value: 'Group', label: 'Group' },
+                      ]}
+                    />
+                  </Styled.FormRow>
+
+                  <Styled.FormRow>
+                    <Styled.Label $color={token.colorText}>Subject Name</Styled.Label>
+                    <Input
+                      value={reverseSpec.subject.name}
+                      onChange={e => updateSubject({ name: e.target.value })}
+                      placeholder="Subject name"
+                    />
+                  </Styled.FormRow>
+
+                  <Styled.FormRow>
+                    <Styled.Label $color={token.colorText}>Subject Namespace</Styled.Label>
+                    <Input
+                      value={reverseSpec.subject.namespace}
+                      onChange={e => updateSubject({ namespace: e.target.value || undefined })}
+                      disabled={reverseSpec.subject.kind !== 'ServiceAccount'}
+                      placeholder="Required for ServiceAccount"
+                    />
+                  </Styled.FormRow>
+                </Styled.SectionGrid>
+              ),
+            },
+          ]
+        : []),
       {
         key: 'primary-selectors',
         label: createSectionLabel(
@@ -246,7 +344,10 @@ export const RbacQueryForm: FC<TRbacQueryFormProps> = ({
           <Styled.SectionGrid>
             <Styled.FormRow>
               <Styled.Label $color={token.colorText}>Match Mode</Styled.Label>
-              <Select value={spec.matchMode} onChange={v => onChange(updateSpec(value, { matchMode: v }))}>
+              <Select
+                value={spec.matchMode}
+                onChange={v => onChange(updateSpec(value, { matchMode: v } as Partial<TPayload['spec']>))}
+              >
                 <Select.Option value="any">Any</Select.Option>
                 <Select.Option value="all">All</Select.Option>
               </Select>
@@ -254,88 +355,128 @@ export const RbacQueryForm: FC<TRbacQueryFormProps> = ({
 
             <Styled.FormRow>
               <Styled.Label $color={token.colorText}>Wildcard Mode</Styled.Label>
-              <Select value={spec.wildcardMode} onChange={v => onChange(updateSpec(value, { wildcardMode: v }))}>
+              <Select
+                value={spec.wildcardMode}
+                onChange={v => onChange(updateSpec(value, { wildcardMode: v } as Partial<TPayload['spec']>))}
+              >
                 <Select.Option value="expand">Expand</Select.Option>
                 <Select.Option value="exact">Exact</Select.Option>
               </Select>
             </Styled.FormRow>
 
-            <Styled.FormRow>
-              <Styled.Label $color={token.colorText}>Namespace Scope Namespaces</Styled.Label>
-              <Select
-                allowClear
-                mode="tags"
-                tokenSeparators={[' ', ',']}
-                value={spec.namespaceScope?.namespaces ?? []}
-                onChange={v =>
-                  onChange(
-                    updateSpec(value, {
-                      namespaceScope:
-                        v.length > 0 || spec.namespaceScope?.strict
-                          ? { namespaces: v, strict: spec.namespaceScope?.strict ?? false }
-                          : undefined,
-                    }),
-                  )
-                }
-                placeholder="Filter by namespaces"
-              />
-            </Styled.FormRow>
+            {roleSpec && (
+              <>
+                <Styled.FormRow>
+                  <Styled.Label $color={token.colorText}>Namespace Scope Namespaces</Styled.Label>
+                  <Select
+                    allowClear
+                    mode="tags"
+                    tokenSeparators={[' ', ',']}
+                    value={roleSpec.namespaceScope?.namespaces ?? []}
+                    onChange={v =>
+                      onChange(
+                        updateSpec(value as TRbacQueryPayload, {
+                          namespaceScope:
+                            v.length > 0 || roleSpec.namespaceScope?.strict
+                              ? { namespaces: v, strict: roleSpec.namespaceScope?.strict ?? false }
+                              : undefined,
+                        }) as TPayload,
+                      )
+                    }
+                    placeholder="Filter by namespaces"
+                  />
+                </Styled.FormRow>
 
-            <Styled.FormRow>
-              <Styled.Label $color={token.colorText}>Impersonate User</Styled.Label>
-              <Input
-                value={spec.impersonateUser}
-                onChange={e => onChange(updateSpec(value, { impersonateUser: e.target.value || undefined }))}
-                placeholder="Impersonate user"
-              />
-            </Styled.FormRow>
+                <Styled.FormRow>
+                  <Styled.Label $color={token.colorText}>Impersonate User</Styled.Label>
+                  <Input
+                    value={roleSpec.impersonateUser}
+                    onChange={e =>
+                      onChange(
+                        updateSpec(value as TRbacQueryPayload, {
+                          impersonateUser: e.target.value || undefined,
+                        }) as TPayload,
+                      )
+                    }
+                    placeholder="Impersonate user"
+                  />
+                </Styled.FormRow>
 
-            <Styled.FormRow>
-              <Styled.Label $color={token.colorText}>Impersonate Group</Styled.Label>
-              <Input
-                value={spec.impersonateGroup}
-                onChange={e => onChange(updateSpec(value, { impersonateGroup: e.target.value || undefined }))}
-                placeholder="Impersonate group"
-              />
-            </Styled.FormRow>
+                <Styled.FormRow>
+                  <Styled.Label $color={token.colorText}>Impersonate Group</Styled.Label>
+                  <Input
+                    value={roleSpec.impersonateGroup}
+                    onChange={e =>
+                      onChange(
+                        updateSpec(value as TRbacQueryPayload, {
+                          impersonateGroup: e.target.value || undefined,
+                        }) as TPayload,
+                      )
+                    }
+                    placeholder="Impersonate group"
+                  />
+                </Styled.FormRow>
 
-            <Styled.GridSpacer aria-hidden />
+                <Styled.GridSpacer aria-hidden />
+              </>
+            )}
 
             <Styled.FormRow>
               <Styled.Label $color={token.colorText}>Filter Phantom APIs</Styled.Label>
               <Styled.CheckboxWrap>
                 <Checkbox
                   checked={spec.filterPhantomAPIs}
-                  onChange={e => onChange(updateSpec(value, { filterPhantomAPIs: e.target.checked }))}
+                  onChange={e =>
+                    onChange(updateSpec(value, { filterPhantomAPIs: e.target.checked } as Partial<TPayload['spec']>))
+                  }
                 >
                   Hide phantom API resources
                 </Checkbox>
               </Styled.CheckboxWrap>
             </Styled.FormRow>
 
-            <Styled.FormRow>
-              <Styled.Label $color={token.colorText}>Namespace Scope Strict</Styled.Label>
-              <Styled.CheckboxWrap>
-                <Checkbox
-                  checked={spec.namespaceScope?.strict ?? false}
-                  onChange={e => {
-                    const strict = e.target.checked
-                    const ns = spec.namespaceScope?.namespaces ?? []
-                    onChange(
-                      updateSpec(value, {
-                        namespaceScope: strict || ns.length > 0 ? { namespaces: ns, strict } : undefined,
-                      }),
-                    )
-                  }}
-                >
-                  Restrict namespace matches strictly
-                </Checkbox>
-              </Styled.CheckboxWrap>
-            </Styled.FormRow>
+            {roleSpec ? (
+              <Styled.FormRow>
+                <Styled.Label $color={token.colorText}>Namespace Scope Strict</Styled.Label>
+                <Styled.CheckboxWrap>
+                  <Checkbox
+                    checked={roleSpec.namespaceScope?.strict ?? false}
+                    onChange={e => {
+                      const strict = e.target.checked
+                      const ns = roleSpec.namespaceScope?.namespaces ?? []
+                      onChange(
+                        updateSpec(value as TRbacQueryPayload, {
+                          namespaceScope: strict || ns.length > 0 ? { namespaces: ns, strict } : undefined,
+                        }) as TPayload,
+                      )
+                    }}
+                  >
+                    Restrict namespace matches strictly
+                  </Checkbox>
+                </Styled.CheckboxWrap>
+              </Styled.FormRow>
+            ) : (
+              <Styled.FormRow>
+                <Styled.Label $color={token.colorText}>Direct Only</Styled.Label>
+                <Styled.CheckboxWrap>
+                  <Checkbox
+                    checked={Boolean(reverseSpec?.directOnly)}
+                    onChange={e =>
+                      reverseSpec &&
+                      onChange(
+                        updateSpec(value as TRbacReverseQueryPayload, { directOnly: e.target.checked }) as TPayload,
+                      )
+                    }
+                  >
+                    Include direct bindings only
+                  </Checkbox>
+                </Styled.CheckboxWrap>
+              </Styled.FormRow>
+            )}
           </Styled.SectionGrid>
         ),
       },
-      ...(showRuntimeLimits
+      ...(showRuntimeLimits && roleSpec
         ? [
             {
               key: 'runtime-limits',
@@ -343,7 +484,7 @@ export const RbacQueryForm: FC<TRbacQueryFormProps> = ({
                 {
                   icon: <ControlOutlined />,
                   title: 'Runtime limits',
-                  activeCount: getRuntimeLimitsCount(spec),
+                  activeCount: getRuntimeLimitsCount(roleSpec),
                   panelKey: 'runtime-limits',
                   isExpanded: activeSectionKeys.includes('runtime-limits'),
                   onToggle: toggleSection,
@@ -355,7 +496,10 @@ export const RbacQueryForm: FC<TRbacQueryFormProps> = ({
                 <Styled.SectionGrid>
                   <Styled.FormRow>
                     <Styled.Label $color={token.colorText}>Pod Phase Mode</Styled.Label>
-                    <Select value={spec.podPhaseMode} onChange={v => onChange(updateSpec(value, { podPhaseMode: v }))}>
+                    <Select
+                      value={roleSpec.podPhaseMode}
+                      onChange={v => onChange(updateSpec(value as TRbacQueryPayload, { podPhaseMode: v }) as TPayload)}
+                    >
                       <Select.Option value="active">Active</Select.Option>
                       <Select.Option value="running">Running</Select.Option>
                       <Select.Option value="all">All</Select.Option>
@@ -366,9 +510,13 @@ export const RbacQueryForm: FC<TRbacQueryFormProps> = ({
                     <Styled.Label $color={token.colorText}>Max Pods per Subject</Styled.Label>
                     <InputNumber
                       min={0}
-                      value={spec.maxPodsPerSubject}
+                      value={roleSpec.maxPodsPerSubject}
                       onChange={v =>
-                        onChange(updateSpec(value, { maxPodsPerSubject: v ?? DEFAULT_SPEC.maxPodsPerSubject }))
+                        onChange(
+                          updateSpec(value as TRbacQueryPayload, {
+                            maxPodsPerSubject: v ?? DEFAULT_SPEC.maxPodsPerSubject,
+                          }) as TPayload,
+                        )
                       }
                       style={{ width: '100%' }}
                     />
@@ -378,9 +526,13 @@ export const RbacQueryForm: FC<TRbacQueryFormProps> = ({
                     <Styled.Label $color={token.colorText}>Max Workloads per Pod</Styled.Label>
                     <InputNumber
                       min={0}
-                      value={spec.maxWorkloadsPerPod}
+                      value={roleSpec.maxWorkloadsPerPod}
                       onChange={v =>
-                        onChange(updateSpec(value, { maxWorkloadsPerPod: v ?? DEFAULT_SPEC.maxWorkloadsPerPod }))
+                        onChange(
+                          updateSpec(value as TRbacQueryPayload, {
+                            maxWorkloadsPerPod: v ?? DEFAULT_SPEC.maxWorkloadsPerPod,
+                          }) as TPayload,
+                        )
                       }
                       style={{ width: '100%' }}
                     />
@@ -396,6 +548,8 @@ export const RbacQueryForm: FC<TRbacQueryFormProps> = ({
       onSelectorChange,
       activeSectionKeys,
       showRuntimeLimits,
+      reverseSpec,
+      roleSpec,
       sectionLabelOptions,
       selector,
       selectorLoading,
@@ -403,18 +557,30 @@ export const RbacQueryForm: FC<TRbacQueryFormProps> = ({
       spec,
       token.colorText,
       toggleSection,
+      updateSubject,
       value,
     ],
   )
 
   const handleSubmit = useCallback(() => {
+    if (subjectValidationMessage) {
+      setShowSubjectValidation(true)
+      return
+    }
+
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur()
     }
 
+    setShowSubjectValidation(false)
     setActiveSectionKeys([])
     onSubmit()
-  }, [onSubmit])
+  }, [onSubmit, subjectValidationMessage])
+
+  const handleResetClick = useCallback(() => {
+    setShowSubjectValidation(false)
+    onReset()
+  }, [onReset])
 
   return (
     <Styled.Container
@@ -436,7 +602,7 @@ export const RbacQueryForm: FC<TRbacQueryFormProps> = ({
         </Styled.TitleBlock>
 
         <Styled.Actions>
-          <Button icon={<ClearOutlined />} onClick={onReset} disabled={loading}>
+          <Button icon={<ClearOutlined />} onClick={handleResetClick} disabled={loading}>
             Reset all
           </Button>
           <Button type="primary" icon={<PlayCircleOutlined />} onClick={handleSubmit} loading={loading}>
@@ -444,6 +610,10 @@ export const RbacQueryForm: FC<TRbacQueryFormProps> = ({
           </Button>
         </Styled.Actions>
       </Styled.Header>
+
+      {showSubjectValidation && subjectValidationMessage && isReverseMode && (
+        <Alert type="warning" showIcon message={subjectValidationMessage} />
+      )}
 
       <Collapse
         items={sectionItems}

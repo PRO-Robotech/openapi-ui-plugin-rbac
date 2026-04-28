@@ -22,6 +22,7 @@ import axios from 'axios'
 import { FOOTER_HEIGHT } from 'constants/blocksSizes'
 import type {
   TRbacQueryPayload,
+  TRbacReverseQueryPayload,
   TRbacQueryResponse,
   TRbacGraphOptions,
   TRbacGraph as TGraph,
@@ -30,9 +31,12 @@ import type {
   TNonResourceUrlItem,
   TNonResourceUrlList,
   TFlowModel,
+  TRbacSubjectKind,
 } from 'localTypes/rbacGraph'
 import { useRbacGraphQuery } from 'hooks/useRbacGraphQuery'
+import { useRbacReverseGraphQuery } from 'hooks/useRbacReverseGraphQuery'
 import { useRbacRoleDetailsQuery } from 'hooks/useRbacRoleDetailsQuery'
+import { useRbacSubjectPermissionsQuery } from 'hooks/useRbacSubjectPermissionsQuery'
 import { layoutRbacGraph } from 'utils/rbacForceLayout'
 import { layoutRbacGraphStar } from 'utils/rbacStarLayout'
 import { getNavigationBaseFactoriesMapping, getRbacResourceHref, RBAC_NAVIGATION_QUERY } from 'utils/rbacResourceLink'
@@ -45,8 +49,24 @@ import {
 import { NamespaceGroupNode, RbacEdge, RbacModalTitleLabel, RbacNodeCard } from './atoms'
 import { RbacGraphToggles, RbacQueryForm, RbacRoleDetailsModalContent } from './molecules'
 import { hasWildcard, toSortedOptions, decorateFlowModelWithResourceLabels } from './utils'
-import { LEGEND, DEFAULT_PAYLOAD, DEFAULT_OPTIONS, EMPTY_SELECTOR_SELECTION, ROLE_NODE_TYPES } from './constants'
+import {
+  LEGEND,
+  DEFAULT_PAYLOAD,
+  DEFAULT_REVERSE_PAYLOAD,
+  DEFAULT_OPTIONS,
+  EMPTY_SELECTOR_SELECTION,
+  ROLE_NODE_TYPES,
+  SUBJECT_NODE_TYPES,
+} from './constants'
 import { Styled } from './styled'
+
+type TRbacGraphMode = 'role' | 'subject'
+
+type TRbacGraphInnerProps = TRbacGraphProps & {
+  mode?: TRbacGraphMode
+}
+
+type TSubjectNode = TRbacNode & { type: TRbacSubjectKind }
 
 export const nodeTypes: NodeTypes = { rbacCard: RbacNodeCard, namespaceGroup: NamespaceGroupNode }
 export const edgeTypes: EdgeTypes = { rbacEdge: RbacEdge }
@@ -67,12 +87,15 @@ const getQueryErrorMessage = (error: unknown) => {
   return 'Query execution failed.'
 }
 
-const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
+const RbacGraphInner: FC<TRbacGraphInnerProps> = ({ clusterId, mode = 'role' }) => {
   const { token } = theme.useToken()
   const { fitView } = useReactFlow()
+  const isReverseMode = mode === 'subject'
   const containerRef = useRef<HTMLDivElement | null>(null)
   const chromeRef = useRef<HTMLDivElement | null>(null)
-  const [payload, setPayload] = useState<TRbacQueryPayload>(DEFAULT_PAYLOAD)
+  const [payload, setPayload] = useState<TRbacQueryPayload | TRbacReverseQueryPayload>(
+    isReverseMode ? DEFAULT_REVERSE_PAYLOAD : DEFAULT_PAYLOAD,
+  )
   const [options, setOptions] = useState<TRbacGraphOptions>(DEFAULT_OPTIONS)
   const shouldFitViewAfterLayoutRef = useRef(false)
   const shouldFitViewAfterStarSwitchRef = useRef(false)
@@ -90,6 +113,7 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
 
   const queryMutation = useRbacGraphQuery(clusterId)
+  const reverseQueryMutation = useRbacReverseGraphQuery(clusterId)
 
   const {
     data: kindsData,
@@ -132,6 +156,16 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
     return node
   }, [detailsNodeId, graphData])
 
+  const selectedSubjectNode = useMemo<TSubjectNode | null>(() => {
+    if (!graphData || !detailsNodeId) return null
+
+    const node = graphData.nodes.find(item => item.id === detailsNodeId)
+
+    if (!node || !SUBJECT_NODE_TYPES.has(node.type)) return null
+
+    return node as TSubjectNode
+  }, [detailsNodeId, graphData])
+
   const roleDetailsQuery = useRbacRoleDetailsQuery({
     clusterId,
     node: selectedRoleNode,
@@ -139,6 +173,33 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
     matchMode: payload.spec.matchMode,
     wildcardMode: payload.spec.wildcardMode,
     filterPhantomAPIs: payload.spec.filterPhantomAPIs,
+  })
+
+  const subjectDetailsPayload = useMemo<TRbacReverseQueryPayload | null>(() => {
+    if (!selectedSubjectNode) return null
+
+    return {
+      spec: {
+        subject: {
+          kind: selectedSubjectNode.type,
+          name: selectedSubjectNode.name,
+          ...(selectedSubjectNode.type === 'ServiceAccount' && selectedSubjectNode.namespace
+            ? { namespace: selectedSubjectNode.namespace }
+            : {}),
+        },
+        selector: payload.spec.selector,
+        matchMode: payload.spec.matchMode,
+        wildcardMode: payload.spec.wildcardMode,
+        directOnly: 'directOnly' in payload.spec ? payload.spec.directOnly : false,
+        filterPhantomAPIs: payload.spec.filterPhantomAPIs,
+      },
+    }
+  }, [payload.spec, selectedSubjectNode])
+
+  const subjectDetailsQuery = useRbacSubjectPermissionsQuery({
+    clusterId,
+    payload: subjectDetailsPayload,
+    enabled: Boolean(selectedSubjectNode),
   })
 
   const kindsWithVersion = useMemo(() => kindsData?.kindsWithVersion ?? [], [kindsData?.kindsWithVersion])
@@ -364,19 +425,22 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
       }
 
       setSelectorSelection(nextSelection)
-      setPayload(prev => ({
-        spec: {
-          ...prev.spec,
-          selector: {
-            ...prev.spec.selector,
-            verbs: nextSelection.verbs,
-            apiGroups: nextSelection.apiGroups,
-            resources: nextSelection.resources,
-            resourceNames: nextSelection.resourceNames,
-            nonResourceURLs: nextSelection.nonResourceURLs,
-          },
-        },
-      }))
+      setPayload(
+        prev =>
+          ({
+            spec: {
+              ...prev.spec,
+              selector: {
+                ...prev.spec.selector,
+                verbs: nextSelection.verbs,
+                apiGroups: nextSelection.apiGroups,
+                resources: nextSelection.resources,
+                resourceNames: nextSelection.resourceNames,
+                nonResourceURLs: nextSelection.nonResourceURLs,
+              },
+            },
+          }) as TRbacQueryPayload | TRbacReverseQueryPayload,
+      )
     },
     [selectorRelations],
   )
@@ -429,40 +493,65 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
 
   const handleSubmit = useCallback(() => {
     setQueryErrorMessage(null)
-    queryMutation.mutate(payload, {
-      onSuccess: (data: TRbacQueryResponse) => {
-        setQueryErrorMessage(null)
-        setGraphData(data.graph)
-        setStats(data.stats)
-        setFocusNodeId(null)
-        setStarSelectedNodeId(null)
-        setDetailsNodeId(null)
-      },
-      onError: error => {
-        clearGraphView()
-        setQueryErrorMessage(getQueryErrorMessage(error))
-      },
-    })
-  }, [clearGraphView, payload, queryMutation])
+    const onSuccess = (data: TRbacQueryResponse) => {
+      setQueryErrorMessage(null)
+      setGraphData(data.graph)
+      setStats(data.stats)
+      setFocusNodeId(null)
+      setStarSelectedNodeId(null)
+      setDetailsNodeId(null)
+    }
+    const onError = (error: unknown) => {
+      clearGraphView()
+      setQueryErrorMessage(getQueryErrorMessage(error))
+    }
 
-  const handleOptionsChange = useCallback((nextOptions: TRbacGraphOptions) => {
-    setOptions(nextOptions)
-    setPayload(prev => ({
-      spec: {
-        ...prev.spec,
-        includePods: nextOptions.includePods,
-        includeWorkloads: nextOptions.includeWorkloads,
-      },
-    }))
+    if (isReverseMode) {
+      reverseQueryMutation.mutate(payload as TRbacReverseQueryPayload, {
+        onSuccess,
+        onError,
+      })
+      return
+    }
+
+    queryMutation.mutate(payload as TRbacQueryPayload, {
+      onSuccess,
+      onError,
+    })
+  }, [clearGraphView, isReverseMode, payload, queryMutation, reverseQueryMutation])
+
+  const handleOptionsChange = useCallback(
+    (nextOptions: TRbacGraphOptions) => {
+      setOptions(nextOptions)
+
+      if (isReverseMode) return
+
+      setPayload(prev => ({
+        spec: {
+          ...(prev as TRbacQueryPayload).spec,
+          includePods: nextOptions.includePods,
+          includeWorkloads: nextOptions.includeWorkloads,
+        },
+      }))
+    },
+    [isReverseMode],
+  )
+
+  const handlePayloadChange = useCallback((nextPayload: TRbacQueryPayload | TRbacReverseQueryPayload) => {
+    setPayload(nextPayload)
   }, [])
 
   const handleReset = useCallback(() => {
-    setPayload(DEFAULT_PAYLOAD)
+    setPayload(isReverseMode ? DEFAULT_REVERSE_PAYLOAD : DEFAULT_PAYLOAD)
     setOptions(DEFAULT_OPTIONS)
     setSelectorSelection(EMPTY_SELECTOR_SELECTION)
     setQueryErrorMessage(null)
     clearGraphView()
-  }, [clearGraphView])
+  }, [clearGraphView, isReverseMode])
+
+  useEffect(() => {
+    handleReset()
+  }, [handleReset])
 
   useEffect(() => {
     if (previousViewModeRef.current !== viewMode) {
@@ -571,6 +660,10 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
       if (node.data?.nodeType && ROLE_NODE_TYPES.has(node.data.nodeType)) {
         setDetailsNodeId(node.id)
       }
+
+      if (node.data?.nodeType && SUBJECT_NODE_TYPES.has(node.data.nodeType)) {
+        setDetailsNodeId(node.id)
+      }
     },
     [],
   )
@@ -635,7 +728,7 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
     [clearActiveNodeState],
   )
 
-  const isLoading = queryMutation.isPending || layouting
+  const isLoading = queryMutation.isPending || reverseQueryMutation.isPending || layouting
   const nonResourceUrlsErrorMessage =
     typeof nonResourceUrlsError === 'string' ? nonResourceUrlsError : nonResourceUrlsError?.message
   const roleDetailsHref = useMemo(() => {
@@ -651,6 +744,42 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
       baseFactoriesMapping,
     })
   }, [baseFactoriesMapping, clusterId, selectedRoleNode])
+  const subjectDetailsHref = useMemo(() => {
+    if (!selectedSubjectNode) return undefined
+
+    return getRbacResourceHref({
+      clusterId,
+      node: {
+        type: selectedSubjectNode.type,
+        name: selectedSubjectNode.name,
+        namespace: selectedSubjectNode.namespace,
+      },
+      baseFactoriesMapping,
+    })
+  }, [baseFactoriesMapping, clusterId, selectedSubjectNode])
+  const detailsToken = useMemo(
+    () => ({
+      colorBgContainer: token.colorBgContainer,
+      colorBgElevated: token.colorBgElevated,
+      colorBorder: token.colorBorder,
+      colorBorderSecondary: token.colorBorderSecondary,
+      colorError: token.colorError,
+      colorFillAlter: token.colorFillAlter,
+      colorFillSecondary: token.colorFillSecondary,
+      colorInfo: token.colorInfo,
+      colorPrimary: token.colorPrimary,
+      colorPrimaryBg: token.colorPrimaryBg,
+      colorPrimaryBorder: token.colorPrimaryBorder,
+      colorPrimaryText: token.colorPrimaryText,
+      colorText: token.colorText,
+      colorTextSecondary: token.colorTextSecondary,
+      colorWarning: token.colorWarning,
+      borderRadius: token.borderRadius,
+      boxShadowSecondary: token.boxShadowSecondary,
+      fontFamilyCode: token.fontFamilyCode,
+    }),
+    [token],
+  )
 
   useEffect(() => {
     const updateCanvasHeight = () => {
@@ -688,16 +817,17 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
         <Card size="small" styles={{ body: { padding: 0 } }}>
           <RbacQueryForm
             value={payload}
+            queryMode={mode}
             selectorLoading={kindsLoading || nonResourceUrlsLoading}
             selectorOptions={selectorOptions}
-            showRuntimeLimits
+            showRuntimeLimits={!isReverseMode}
             onSelectorChange={(patch, changedKey) =>
               handleSelectorChange({ ...selectorSelection, ...patch }, changedKey)
             }
-            onChange={setPayload}
+            onChange={handlePayloadChange}
             onSubmit={handleSubmit}
             onReset={handleReset}
-            loading={queryMutation.isPending}
+            loading={queryMutation.isPending || reverseQueryMutation.isPending}
           />
         </Card>
 
@@ -729,14 +859,14 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
         )}
 
         <Card size="small" styles={{ body: { padding: 0 } }} style={{ marginTop: 8 }}>
-          <RbacGraphToggles value={options} onChange={handleOptionsChange} />
+          <RbacGraphToggles value={options} onChange={handleOptionsChange} showRuntimeOptions={!isReverseMode} />
         </Card>
 
         {stats && (
           <Styled.StatsBar>
             <span>Roles: {stats.matchedRoles}</span>
             <span>Bindings: {stats.matchedBindings}</span>
-            <span>Subjects: {stats.matchedSubjects}</span>
+            {stats.matchedSubjects !== undefined && <span>Subjects: {stats.matchedSubjects}</span>}
           </Styled.StatsBar>
         )}
 
@@ -810,8 +940,14 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
               node={selectedRoleNode}
               href={roleDetailsHref}
             />
+          ) : selectedSubjectNode ? (
+            <RbacModalTitleLabel
+              badgeId={`rbac-graph-modal-title-${selectedSubjectNode.id}`}
+              node={selectedSubjectNode}
+              href={subjectDetailsHref}
+            />
           ) : (
-            'RBAC role details'
+            'RBAC details'
           )
         }
         onCancel={() => setDetailsNodeId(null)}
@@ -820,45 +956,42 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
         centered
         destroyOnHidden
       >
-        {!selectedRoleNode ? (
-          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No role node is selected." />
-        ) : roleDetailsQuery.isLoading ? (
+        {!selectedRoleNode && !selectedSubjectNode ? (
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No RBAC node is selected." />
+        ) : selectedRoleNode && roleDetailsQuery.isLoading ? (
           <Styled.SpinContainer>
             <Spin tip="Loading role details..." />
           </Styled.SpinContainer>
-        ) : roleDetailsQuery.isError ? (
+        ) : selectedRoleNode && roleDetailsQuery.isError ? (
           <Alert
             type="error"
             message="Error while loading role details"
             description={getQueryErrorMessage(roleDetailsQuery.error)}
           />
-        ) : roleDetailsQuery.data ? (
+        ) : selectedRoleNode && roleDetailsQuery.data ? (
           <RbacRoleDetailsModalContent
             data={roleDetailsQuery.data}
             kindsWithVersion={kindsWithVersion}
-            token={{
-              colorBgContainer: token.colorBgContainer,
-              colorBgElevated: token.colorBgElevated,
-              colorBorder: token.colorBorder,
-              colorBorderSecondary: token.colorBorderSecondary,
-              colorError: token.colorError,
-              colorFillAlter: token.colorFillAlter,
-              colorFillSecondary: token.colorFillSecondary,
-              colorInfo: token.colorInfo,
-              colorPrimary: token.colorPrimary,
-              colorPrimaryBg: token.colorPrimaryBg,
-              colorPrimaryBorder: token.colorPrimaryBorder,
-              colorPrimaryText: token.colorPrimaryText,
-              colorText: token.colorText,
-              colorTextSecondary: token.colorTextSecondary,
-              colorWarning: token.colorWarning,
-              borderRadius: token.borderRadius,
-              boxShadowSecondary: token.boxShadowSecondary,
-              fontFamilyCode: token.fontFamilyCode,
-            }}
+            token={detailsToken}
+          />
+        ) : selectedSubjectNode && subjectDetailsQuery.isLoading ? (
+          <Styled.SpinContainer>
+            <Spin tip="Loading subject permissions..." />
+          </Styled.SpinContainer>
+        ) : selectedSubjectNode && subjectDetailsQuery.isError ? (
+          <Alert
+            type="error"
+            message="Error while loading subject permissions"
+            description={getQueryErrorMessage(subjectDetailsQuery.error)}
+          />
+        ) : selectedSubjectNode && subjectDetailsQuery.data ? (
+          <RbacRoleDetailsModalContent
+            data={subjectDetailsQuery.data}
+            kindsWithVersion={kindsWithVersion}
+            token={detailsToken}
           />
         ) : (
-          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No role details were returned for this node." />
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No RBAC details were returned for this node." />
         )}
       </Modal>
     </Styled.Container>
@@ -867,6 +1000,12 @@ const RbacGraphInner: FC<TRbacGraphProps> = ({ clusterId }) => {
 
 export const RbacGraph: FC<TRbacGraphProps> = props => (
   <ReactFlowProvider>
-    <RbacGraphInner {...props} />
+    <RbacGraphInner {...props} mode="role" />
+  </ReactFlowProvider>
+)
+
+export const RbacReverseGraph: FC<TRbacGraphProps> = props => (
+  <ReactFlowProvider>
+    <RbacGraphInner {...props} mode="subject" />
   </ReactFlowProvider>
 )

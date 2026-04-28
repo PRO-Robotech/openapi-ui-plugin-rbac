@@ -12,19 +12,18 @@ type TRbacModalTitleLabelProps = {
 }
 
 export const RbacModalTitleLabel: FC<TRbacModalTitleLabelProps> = ({ badgeId, node, href }) => {
-  const textNode =
-    node.type === 'Role' && node.namespace ? (
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-        <Tag color="orange" style={{ marginInlineEnd: 0 }}>
-          {node.namespace}
-        </Tag>
-        {href ? <RbacResourceLink href={href}>{node.name}</RbacResourceLink> : <span>{node.name}</span>}
-      </span>
-    ) : href ? (
-      <RbacResourceLink href={href}>{node.name}</RbacResourceLink>
-    ) : (
-      <span>{node.name}</span>
-    )
+  const textNode = node.namespace ? (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+      <Tag color="orange" style={{ marginInlineEnd: 0 }}>
+        {node.namespace}
+      </Tag>
+      {href ? <RbacResourceLink href={href}>{node.name}</RbacResourceLink> : <span>{node.name}</span>}
+    </span>
+  ) : href ? (
+    <RbacResourceLink href={href}>{node.name}</RbacResourceLink>
+  ) : (
+    <span>{node.name}</span>
+  )
 
   return (
     <span style={{ display: 'inline-flex', paddingBottom: 4 }}>

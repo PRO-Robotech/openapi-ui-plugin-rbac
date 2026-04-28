@@ -83,6 +83,14 @@ export type TRbacNamespaceScope = {
   strict: boolean
 }
 
+export type TRbacSubjectKind = 'ServiceAccount' | 'User' | 'Group'
+
+export type TRbacSubjectRef = {
+  kind: TRbacSubjectKind | ''
+  name: string
+  namespace?: string
+}
+
 export type TRbacQueryPayload = {
   spec: {
     selector: TRbacSelector
@@ -101,13 +109,87 @@ export type TRbacQueryPayload = {
   }
 }
 
+export type TRbacReverseQueryPayload = {
+  spec: {
+    subject: TRbacSubjectRef
+    selector: TRbacSelector
+    matchMode: 'any' | 'all'
+    wildcardMode: 'expand' | 'exact'
+    directOnly: boolean
+    filterPhantomAPIs: boolean
+  }
+}
+
 export type TRbacQueryResponse = {
   graph: TRbacGraph
   stats?: {
     matchedRoles: number
     matchedBindings: number
-    matchedSubjects: number
+    matchedSubjects?: number
   }
+  resolvedSubjects?: TRbacSubjectRef[]
+  warnings?: unknown[]
+  knownGaps?: string[]
+}
+
+export type TRbacBindingKind = 'RoleBinding' | 'ClusterRoleBinding'
+
+export type TRbacRoleRef = {
+  kind: Extract<TRbacNodeType, 'Role' | 'ClusterRole'>
+  name: string
+  namespace?: string
+}
+
+export type TRbacBindingRef = {
+  kind: TRbacBindingKind
+  name: string
+  namespace?: string
+}
+
+export type TRbacSubjectBinding = TRbacBindingRef & {
+  roleRef: TRbacRoleRef
+  effectiveScope: 'cluster' | 'namespaced'
+  viaSubject: TRbacSubjectRef
+  broken?: boolean
+}
+
+export type TRbacSubjectRoleSummary = {
+  ref: TRbacRoleRef
+  assessment?: TRbacAssessment
+  phantom?: boolean
+}
+
+export type TRbacAttributedGrant = {
+  sourceRole: TRbacRoleRef
+  sourceBinding: TRbacBindingRef
+  apiGroup?: string
+  resource?: string
+  verb: string
+  resourceNames?: string[]
+  nonResourceURL?: string
+}
+
+export type TRbacSubjectPermissionsStatus = {
+  subject: TRbacSubjectRef
+  resolvedSubjects?: TRbacSubjectRef[]
+  grants: TRbacAttributedGrant[]
+  bindings: TRbacSubjectBinding[]
+  roles: TRbacSubjectRoleSummary[]
+  warnings?: unknown[]
+}
+
+export type TRbacSubjectPermissionGrantGroup = {
+  key: string
+  type: 'resource' | 'non-resource'
+  apiGroup?: string
+  resource?: string
+  nonResourceURL?: string
+  verb: string
+  resourceNames: string[]
+  grants: Array<{
+    role: TRbacRoleRef
+    binding: TRbacBindingRef
+  }>
 }
 
 export type TRbacGraphOptions = {
@@ -235,4 +317,5 @@ export type TRbacRoleDetailsResponse = {
   nonResourceUrls: TRbacRoleDetailsNonResourceUrlPermission[]
   bindings?: TRbacRoleDetailsBinding[]
   assessment?: TRbacAssessment
+  subjectGrantGroups?: TRbacSubjectPermissionGrantGroup[]
 }

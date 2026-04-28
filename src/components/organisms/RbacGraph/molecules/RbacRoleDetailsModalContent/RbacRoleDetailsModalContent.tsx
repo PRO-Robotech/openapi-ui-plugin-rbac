@@ -33,10 +33,21 @@ export const RbacRoleDetailsModalContent: FC<TRbacRoleDetailsModalContentProps> 
       </Styled.AssessmentSection>
 
       {data.resourceGroups.map(group => (
-        <ApiGroupSection key={group.apiGroup} group={group} token={token} kindsWithVersion={kindsWithVersion} />
+        <ApiGroupSection
+          key={group.apiGroup}
+          group={group}
+          token={token}
+          kindsWithVersion={kindsWithVersion}
+          subjectGrantGroups={data.subjectGrantGroups}
+        />
       ))}
 
-      <NonResourceUrlsTable permissions={data.nonResourceUrls} token={token} kindsWithVersion={kindsWithVersion} />
+      <NonResourceUrlsTable
+        permissions={data.nonResourceUrls}
+        token={token}
+        kindsWithVersion={kindsWithVersion}
+        subjectGrantGroups={data.subjectGrantGroups}
+      />
 
       <div style={{ paddingTop: 8, borderTop: `1px solid ${token.colorBorder}` }}>
         <Styled.LegendRow>

@@ -69,6 +69,40 @@ const LegendItem = styled.span`
   gap: 6px;
 `
 
+const GrantSourceList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+`
+
+const GrantSourceItem = styled.div`
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+`
+
+const GrantTarget = styled.div`
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+`
+
+const GrantRefText = styled.span`
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+`
+
+const GrantVerbList = styled.span`
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+`
+
 export const Styled = {
   Container,
   AssessmentSection,
@@ -76,4 +110,9 @@ export const Styled = {
   DeniedCell,
   LegendRow,
   LegendItem,
+  GrantSourceList,
+  GrantSourceItem,
+  GrantTarget,
+  GrantRefText,
+  GrantVerbList,
 }

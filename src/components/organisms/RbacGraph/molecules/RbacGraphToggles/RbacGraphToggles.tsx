@@ -7,9 +7,10 @@ import { Styled } from './styled'
 type TRbacGraphTogglesProps = {
   value: TRbacGraphOptions
   onChange: (options: TRbacGraphOptions) => void
+  showRuntimeOptions?: boolean
 }
 
-export const RbacGraphToggles: FC<TRbacGraphTogglesProps> = ({ value, onChange }) => {
+export const RbacGraphToggles: FC<TRbacGraphTogglesProps> = ({ value, onChange, showRuntimeOptions = true }) => {
   const toggle = (key: keyof TRbacGraphOptions) => (checked: boolean) => onChange({ ...value, [key]: checked })
   const viewMode = value.starMode ? 'star' : value.reduceEdgeCrossings ? 'default-reduced' : 'default'
 
@@ -68,15 +69,19 @@ export const RbacGraphToggles: FC<TRbacGraphTogglesProps> = ({ value, onChange }
         Permissions
       </Styled.ToggleItem>
 
-      <Styled.ToggleItem>
-        <Switch size="small" checked={value.includePods} onChange={toggle('includePods')} />
-        Pods
-      </Styled.ToggleItem>
+      {showRuntimeOptions && (
+        <>
+          <Styled.ToggleItem>
+            <Switch size="small" checked={value.includePods} onChange={toggle('includePods')} />
+            Pods
+          </Styled.ToggleItem>
 
-      <Styled.ToggleItem>
-        <Switch size="small" checked={value.includeWorkloads} onChange={toggle('includeWorkloads')} />
-        Workloads
-      </Styled.ToggleItem>
+          <Styled.ToggleItem>
+            <Switch size="small" checked={value.includeWorkloads} onChange={toggle('includeWorkloads')} />
+            Workloads
+          </Styled.ToggleItem>
+        </>
+      )}
 
       <Styled.ToggleItem>
         <Switch size="small" checked={value.onlyReachable} onChange={toggle('onlyReachable')} />
