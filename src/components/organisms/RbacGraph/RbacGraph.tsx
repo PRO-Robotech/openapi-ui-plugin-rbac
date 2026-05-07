@@ -23,6 +23,7 @@ import { FOOTER_HEIGHT } from 'constants/blocksSizes'
 import type {
   TRbacQueryPayload,
   TRbacReverseQueryPayload,
+  TRbacSubjectsBySelectorGraphPayload,
   TRbacQueryResponse,
   TRbacGraphOptions,
   TRbacGraph as TGraph,
@@ -93,9 +94,9 @@ const RbacGraphInner: FC<TRbacGraphInnerProps> = ({ clusterId, mode = 'role' }) 
   const isReverseMode = mode === 'subject'
   const containerRef = useRef<HTMLDivElement | null>(null)
   const chromeRef = useRef<HTMLDivElement | null>(null)
-  const [payload, setPayload] = useState<TRbacQueryPayload | TRbacReverseQueryPayload>(
-    isReverseMode ? DEFAULT_REVERSE_PAYLOAD : DEFAULT_PAYLOAD,
-  )
+  const [payload, setPayload] = useState<
+    TRbacQueryPayload | TRbacReverseQueryPayload | TRbacSubjectsBySelectorGraphPayload
+  >(isReverseMode ? DEFAULT_REVERSE_PAYLOAD : DEFAULT_PAYLOAD)
   const [options, setOptions] = useState<TRbacGraphOptions>(DEFAULT_OPTIONS)
   const shouldFitViewAfterLayoutRef = useRef(false)
   const shouldFitViewAfterStarSwitchRef = useRef(false)
@@ -439,7 +440,7 @@ const RbacGraphInner: FC<TRbacGraphInnerProps> = ({ clusterId, mode = 'role' }) 
                 nonResourceURLs: nextSelection.nonResourceURLs,
               },
             },
-          }) as TRbacQueryPayload | TRbacReverseQueryPayload,
+          }) as TRbacQueryPayload | TRbacReverseQueryPayload | TRbacSubjectsBySelectorGraphPayload,
       )
     },
     [selectorRelations],
@@ -507,7 +508,7 @@ const RbacGraphInner: FC<TRbacGraphInnerProps> = ({ clusterId, mode = 'role' }) 
     }
 
     if (isReverseMode) {
-      reverseQueryMutation.mutate(payload as TRbacReverseQueryPayload, {
+      reverseQueryMutation.mutate(payload as TRbacSubjectsBySelectorGraphPayload, {
         onSuccess,
         onError,
       })
@@ -537,9 +538,12 @@ const RbacGraphInner: FC<TRbacGraphInnerProps> = ({ clusterId, mode = 'role' }) 
     [isReverseMode],
   )
 
-  const handlePayloadChange = useCallback((nextPayload: TRbacQueryPayload | TRbacReverseQueryPayload) => {
-    setPayload(nextPayload)
-  }, [])
+  const handlePayloadChange = useCallback(
+    (nextPayload: TRbacQueryPayload | TRbacReverseQueryPayload | TRbacSubjectsBySelectorGraphPayload) => {
+      setPayload(nextPayload)
+    },
+    [],
+  )
 
   const handleReset = useCallback(() => {
     setPayload(isReverseMode ? DEFAULT_REVERSE_PAYLOAD : DEFAULT_PAYLOAD)

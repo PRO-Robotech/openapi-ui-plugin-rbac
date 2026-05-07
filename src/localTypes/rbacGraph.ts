@@ -120,6 +120,16 @@ export type TRbacReverseQueryPayload = {
   }
 }
 
+export type TRbacSubjectsBySelectorGraphPayload = {
+  spec: {
+    selector: TRbacSelector
+    matchMode: 'any' | 'all'
+    wildcardMode: 'expand' | 'exact'
+    expandImplicitGroups: boolean
+    filterPhantomAPIs: boolean
+  }
+}
+
 export type TRbacQueryResponse = {
   graph: TRbacGraph
   stats?: {

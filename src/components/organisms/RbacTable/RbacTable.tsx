@@ -28,6 +28,7 @@ import type {
   TRbacQueryPayload,
   TRbacQueryResponse,
   TRbacReverseQueryPayload,
+  TRbacSubjectsBySelectorGraphPayload,
   TRbacGraph as TGraph,
   TRbacGraphProps,
   TNonResourceUrlItem,
@@ -43,7 +44,13 @@ import { RbacQueryForm, RbacRoleDetailsModalContent } from 'components/organisms
 import { DEFAULT_REVERSE_PAYLOAD, ROLE_NODE_TYPES, SUBJECT_NODE_TYPES } from 'components/organisms/RbacGraph/constants'
 import { hasWildcard, toSortedOptions } from 'components/organisms/RbacGraph/utils'
 import { getNavigationBaseFactoriesMapping, getRbacResourceHref, RBAC_NAVIGATION_QUERY } from 'utils/rbacResourceLink'
-import { buildRoleTableRows, type TRoleTableRow, type TTableScope } from './utils/buildRoleTableRows'
+import {
+  buildRoleTableRows,
+  buildSubjectTableRows,
+  type TSubjectTableRow,
+  type TRoleTableRow,
+  type TTableScope,
+} from './utils/buildRoleTableRows'
 import {
   areRbacTableSearchStatesEqual,
   createDefaultRbacTableSearchState,
@@ -57,16 +64,24 @@ import {
 import { getQueryErrorMessage } from './utils/getQueryErrorMessage'
 import {
   getAccountBindingsSearchText,
+  getRoleBindingsSearchText,
   getRoleSearchText,
   getScopeTagStyle,
   getRoleDetailsToken,
+  getSubjectSearchText,
 } from './utils/gettersAndFormatters'
-import { renderRoleLabel, renderAccountBindings, renderAggregationSources } from './utils/renders'
+import {
+  renderRoleLabel,
+  renderSubjectLabel,
+  renderAccountBindings,
+  renderRoleBindings,
+  renderAggregationSources,
+} from './utils/renders'
 import { Styled } from './styled'
 
 type TSelectorSelection = TRbacTableSelectorSelection
 type TRbacTableMode = 'role' | 'subject'
-type TRbacTablePayload = TRbacQueryPayload | TRbacReverseQueryPayload
+type TRbacTablePayload = TRbacQueryPayload | TRbacSubjectsBySelectorGraphPayload
 type TRbacTableProps = TRbacGraphProps & {
   mode?: TRbacTableMode
 }
@@ -419,15 +434,24 @@ export const RbacTable: FC<TRbacTableProps> = ({ clusterId, mode = 'role' }) => 
     }
   }, [applySearchState, canApplySelectorConstraints, currentSearchState, isReverseMode, normalizedSearchState])
 
-  const rows = useMemo(() => buildRoleTableRows(graphData), [graphData])
+  const roleRows = useMemo(() => buildRoleTableRows(graphData), [graphData])
+  const subjectRows = useMemo(() => buildSubjectTableRows(graphData), [graphData])
   const scopeFilterItems = useMemo<TScopeFilterItem[]>(() => {
     const counts = new Map<TTableScope, number>()
 
-    rows.forEach(row => {
-      row.accountBindings.forEach(accountBinding => {
-        counts.set(accountBinding.scope, (counts.get(accountBinding.scope) ?? 0) + 1)
+    if (isReverseMode) {
+      subjectRows.forEach(row => {
+        row.roleBindings.forEach(roleBinding => {
+          counts.set(roleBinding.scope, (counts.get(roleBinding.scope) ?? 0) + 1)
+        })
       })
-    })
+    } else {
+      roleRows.forEach(row => {
+        row.accountBindings.forEach(accountBinding => {
+          counts.set(accountBinding.scope, (counts.get(accountBinding.scope) ?? 0) + 1)
+        })
+      })
+    }
 
     const items: TScopeFilterItem[] = [
       {
@@ -463,14 +487,14 @@ export const RbacTable: FC<TRbacTableProps> = ({ clusterId, mode = 'role' }) => 
     ]
 
     return items.filter(item => item.count > 0)
-  }, [rows])
+  }, [isReverseMode, roleRows, subjectRows])
 
-  const filteredRows = useMemo(() => {
+  const filteredRoleRows = useMemo(() => {
     if (scopeFilters.length === 0) {
-      return rows
+      return roleRows
     }
 
-    return rows
+    return roleRows
       .map(row => {
         const accountBindings = row.accountBindings.filter(accountBinding =>
           scopeFilters.includes(accountBinding.scope),
@@ -482,24 +506,51 @@ export const RbacTable: FC<TRbacTableProps> = ({ clusterId, mode = 'role' }) => 
         }
       })
       .filter(row => row.accountBindings.length > 0)
-  }, [rows, scopeFilters])
+  }, [roleRows, scopeFilters])
 
-  const selectedRow = useMemo(
-    () => filteredRows.find(row => row.key === selectedRowKey) ?? null,
-    [filteredRows, selectedRowKey],
+  const filteredSubjectRows = useMemo(() => {
+    if (scopeFilters.length === 0) {
+      return subjectRows
+    }
+
+    return subjectRows
+      .map(row => {
+        const roleBindings = row.roleBindings.filter(roleBinding => scopeFilters.includes(roleBinding.scope))
+
+        return {
+          ...row,
+          roleBindings,
+        }
+      })
+      .filter(row => row.roleBindings.length > 0)
+  }, [scopeFilters, subjectRows])
+
+  const selectedRoleRow = useMemo(
+    () => filteredRoleRows.find(row => row.key === selectedRowKey) ?? null,
+    [filteredRoleRows, selectedRowKey],
+  )
+
+  const selectedSubjectRow = useMemo(
+    () => filteredSubjectRows.find(row => row.key === selectedRowKey) ?? null,
+    [filteredSubjectRows, selectedRowKey],
   )
 
   const selectedAggregatorRow = useMemo(
-    () => filteredRows.find(row => row.key === selectedAggregatorRowKey) ?? null,
-    [filteredRows, selectedAggregatorRowKey],
+    () => filteredRoleRows.find(row => row.key === selectedAggregatorRowKey) ?? null,
+    [filteredRoleRows, selectedAggregatorRowKey],
   )
 
   const nodeById = useMemo(() => new Map(graphData?.nodes.map(node => [node.id, node] as const) ?? []), [graphData])
 
   const selectedNode = useMemo(() => {
-    if (!selectedRow) return null
-    return nodeById.get(selectedRow.roleNodeId) ?? null
-  }, [nodeById, selectedRow])
+    if (isReverseMode) {
+      if (!selectedSubjectRow) return null
+      return nodeById.get(selectedSubjectRow.subjectNodeId) ?? null
+    }
+
+    if (!selectedRoleRow) return null
+    return nodeById.get(selectedRoleRow.roleNodeId) ?? null
+  }, [isReverseMode, nodeById, selectedRoleRow, selectedSubjectRow])
 
   const selectedNodeHref = useMemo(() => {
     if (!selectedNode) return undefined
@@ -509,30 +560,19 @@ export const RbacTable: FC<TRbacTableProps> = ({ clusterId, mode = 'role' }) => 
       node: {
         type: selectedNode.type,
         name: selectedNode.name,
-        namespace: selectedNode.type === 'Role' ? selectedNode.namespace : undefined,
+        namespace:
+          selectedNode.type === 'Role' || selectedNode.type === 'RoleBinding' || selectedNode.type === 'ServiceAccount'
+            ? selectedNode.namespace
+            : undefined,
       },
       baseFactoriesMapping,
     })
   }, [baseFactoriesMapping, clusterId, selectedNode])
 
-  const reverseSubjectTitleNode = useMemo<Pick<TRbacNode, 'type' | 'name' | 'namespace'> | null>(() => {
-    if (!isReverseMode) return null
-
-    // eslint-disable-next-line prefer-destructuring
-    const subject = (payload as TRbacReverseQueryPayload).spec.subject
-    if (!subject.kind) return null
-
-    return {
-      type: subject.kind,
-      name: subject.name.trim() || '*',
-      namespace: subject.namespace?.trim() || undefined,
-    }
-  }, [isReverseMode, payload])
-
   const primaryRoleNode = useMemo<Pick<TRbacNode, 'type' | 'name' | 'namespace'> | null>(() => {
-    if (isReverseMode || !selectedNode || !ROLE_NODE_TYPES.has(selectedNode.type)) return null
+    if (!selectedNode || !ROLE_NODE_TYPES.has(selectedNode.type)) return null
     return selectedNode
-  }, [isReverseMode, selectedNode])
+  }, [selectedNode])
 
   const primaryRoleDetailsQuery = useRbacRoleDetailsQuery({
     clusterId,
@@ -542,12 +582,31 @@ export const RbacTable: FC<TRbacTableProps> = ({ clusterId, mode = 'role' }) => 
     wildcardMode: payload.spec.wildcardMode,
     filterPhantomAPIs: payload.spec.filterPhantomAPIs,
   })
+  const subjectDetailsPayload = useMemo<TRbacReverseQueryPayload | null>(() => {
+    if (!isReverseMode || !selectedSubjectRow) return null
+
+    return {
+      spec: {
+        subject: {
+          kind: selectedSubjectRow.subject.kind,
+          name: selectedSubjectRow.subject.name,
+          ...(selectedSubjectRow.subject.kind === 'ServiceAccount' && selectedSubjectRow.subject.namespace
+            ? { namespace: selectedSubjectRow.subject.namespace }
+            : {}),
+        },
+        selector: payload.spec.selector,
+        matchMode: payload.spec.matchMode,
+        wildcardMode: payload.spec.wildcardMode,
+        directOnly: false,
+        filterPhantomAPIs: payload.spec.filterPhantomAPIs,
+      },
+    }
+  }, [isReverseMode, payload.spec, selectedSubjectRow])
   const subjectPermissionsQuery = useRbacSubjectPermissionsQuery({
     clusterId,
-    payload: isReverseMode ? (payload as TRbacReverseQueryPayload) : null,
-    enabled: isReverseMode && Boolean(selectedRow),
+    payload: subjectDetailsPayload,
+    enabled: Boolean(subjectDetailsPayload),
   })
-
   const renderAccountsFilterDropdown = useCallback(
     ({ setSelectedKeys, selectedKeys, confirm, clearFilters, close }: FilterDropdownProps) => (
       <div style={{ padding: 8 }} onKeyDown={event => event.stopPropagation()}>
@@ -634,7 +693,7 @@ export const RbacTable: FC<TRbacTableProps> = ({ clusterId, mode = 'role' }) => 
     [token.colorPrimary],
   )
 
-  const columns = useMemo<ColumnsType<TRoleTableRow>>(
+  const roleColumns = useMemo<ColumnsType<TRoleTableRow>>(
     () => [
       {
         title: '',
@@ -748,6 +807,107 @@ export const RbacTable: FC<TRbacTableProps> = ({ clusterId, mode = 'role' }) => 
     ],
   )
 
+  const subjectColumns = useMemo<ColumnsType<TSubjectTableRow>>(
+    () => [
+      {
+        title: '',
+        key: 'actions',
+        width: 72,
+        fixed: 'left',
+        align: 'center',
+        render: (_, row) => (
+          <Tooltip title="Open details">
+            <Button
+              aria-label={`Open details for ${row.subject.kind} ${row.subject.name}`}
+              icon={<EyeOutlined />}
+              onClick={event => {
+                event.stopPropagation()
+                setSelectedRowKey(row.key)
+              }}
+            />
+          </Tooltip>
+        ),
+      },
+      {
+        title: 'Subject',
+        key: 'subject',
+        width: 320,
+        filteredValue: accountColumnFilter,
+        filterDropdown: renderAccountsFilterDropdown,
+        filterIcon: renderAccountsFilterIcon,
+        onFilter: (value, record) => getSubjectSearchText(record).includes(String(value).toLowerCase()),
+        sorter: (left, right) =>
+          left.subject.kind.localeCompare(right.subject.kind) ||
+          (left.subject.namespace ?? '').localeCompare(right.subject.namespace ?? '') ||
+          left.subject.name.localeCompare(right.subject.name),
+        render: (_, row) =>
+          renderSubjectLabel({
+            row,
+            clusterId,
+            baseFactoriesMapping,
+          }),
+      },
+      {
+        title: 'Assessment',
+        dataIndex: 'assessment',
+        key: 'assessment',
+        width: 200,
+        sorter: (left, right) => (left.assessment?.totalCount ?? 0) - (right.assessment?.totalCount ?? 0),
+        render: (_, row) => <RbacAssessmentBar assessment={row.assessment} size="compact" />,
+      },
+      {
+        title: 'Roles',
+        dataIndex: 'rolesCount',
+        key: 'rolesCount',
+        width: 120,
+        sorter: (left, right) => left.rolesCount - right.rolesCount,
+      },
+      {
+        title: 'Bindings',
+        dataIndex: 'bindingsCount',
+        key: 'bindingsCount',
+        width: 120,
+        sorter: (left, right) => left.bindingsCount - right.bindingsCount,
+      },
+      {
+        title: 'Matched Rules',
+        dataIndex: 'matchedRuleCount',
+        key: 'matchedRuleCount',
+        width: 140,
+        sorter: (left, right) => left.matchedRuleCount - right.matchedRuleCount,
+      },
+      {
+        title: 'Role Bindings',
+        dataIndex: 'roleBindings',
+        key: 'roleBindings',
+        width: 720,
+        filteredValue: roleColumnFilter,
+        filterDropdown: renderRoleFilterDropdown,
+        filterIcon: renderRoleFilterIcon,
+        onFilter: (value, record) =>
+          getRoleBindingsSearchText(record.roleBindings).includes(String(value).toLowerCase()),
+        render: (_, row) =>
+          renderRoleBindings({
+            roleBindings: row.roleBindings,
+            clusterId,
+            baseFactoriesMapping,
+            token,
+          }),
+      },
+    ],
+    [
+      accountColumnFilter,
+      baseFactoriesMapping,
+      clusterId,
+      renderAccountsFilterDropdown,
+      renderAccountsFilterIcon,
+      renderRoleFilterDropdown,
+      renderRoleFilterIcon,
+      roleColumnFilter,
+      token,
+    ],
+  )
+
   const submitQuery = useCallback(
     (nextPayload: TRbacTablePayload) => {
       setCollapseSignal(prev => prev + 1)
@@ -768,7 +928,7 @@ export const RbacTable: FC<TRbacTableProps> = ({ clusterId, mode = 'role' }) => 
       }
 
       if (isReverseMode) {
-        reverseQueryMutation.mutate(nextPayload as TRbacReverseQueryPayload, {
+        reverseQueryMutation.mutate(nextPayload as TRbacSubjectsBySelectorGraphPayload, {
           onSuccess,
           onError,
         })
@@ -800,6 +960,7 @@ export const RbacTable: FC<TRbacTableProps> = ({ clusterId, mode = 'role' }) => 
     typeof nonResourceUrlsError === 'string' ? nonResourceUrlsError : nonResourceUrlsError?.message
   const roleDetailsToken = useMemo(() => getRoleDetailsToken(token), [token])
   const tableScrollY = useMemo(() => Math.max(240, tableHeight - TABLE_SCROLL_RESERVED_HEIGHT), [tableHeight])
+  const visibleRowsCount = isReverseMode ? filteredSubjectRows.length : filteredRoleRows.length
 
   useEffect(() => {
     if (isReverseMode || canonicalSearchParams === appliedSearchParamsRef.current) return
@@ -877,49 +1038,30 @@ export const RbacTable: FC<TRbacTableProps> = ({ clusterId, mode = 'role' }) => 
         $colorBorder={token.colorBorder}
         $borderRadius={token.borderRadius}
       >
-        <Table<TRoleTableRow>
-          rowKey="key"
-          dataSource={filteredRows}
-          columns={columns}
-          size="small"
-          pagination={false}
-          scroll={{ x: 1800, y: tableScrollY }}
-        />
+        {isReverseMode ? (
+          <Table<TSubjectTableRow>
+            rowKey="key"
+            dataSource={filteredSubjectRows}
+            columns={subjectColumns}
+            size="small"
+            pagination={false}
+            scroll={{ x: 1800, y: tableScrollY }}
+          />
+        ) : (
+          <Table<TRoleTableRow>
+            rowKey="key"
+            dataSource={filteredRoleRows}
+            columns={roleColumns}
+            size="small"
+            pagination={false}
+            scroll={{ x: 1800, y: tableScrollY }}
+          />
+        )}
       </Styled.TableContainer>
     )
   })()
 
   const detailsModalContent = (() => {
-    if (isReverseMode) {
-      if (subjectPermissionsQuery.isLoading) {
-        return (
-          <Styled.SpinContainer>
-            <Spin tip="Loading subject permissions..." />
-          </Styled.SpinContainer>
-        )
-      }
-      if (subjectPermissionsQuery.isError) {
-        return (
-          <Alert
-            type="error"
-            message="Error while loading subject permissions"
-            description={getQueryErrorMessage(subjectPermissionsQuery.error)}
-          />
-        )
-      }
-      if (subjectPermissionsQuery.data) {
-        return (
-          <RbacRoleDetailsModalContent
-            data={subjectPermissionsQuery.data}
-            kindsWithVersion={kindsData?.kindsWithVersion ?? []}
-            token={roleDetailsToken}
-          />
-        )
-      }
-
-      return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No subject permissions were returned." />
-    }
-
     if (!primaryRoleNode) return null
     if (primaryRoleDetailsQuery.isLoading) {
       return (
@@ -982,6 +1124,108 @@ export const RbacTable: FC<TRbacTableProps> = ({ clusterId, mode = 'role' }) => 
     )
   })()
 
+  let detailsModalTitle: React.ReactNode = isReverseMode ? 'RBAC subject details' : 'RBAC role details'
+  if (selectedNode) {
+    detailsModalTitle = (
+      <RbacModalTitleLabel
+        badgeId={`rbac-table-modal-title-${selectedNode.id}`}
+        node={selectedNode}
+        href={selectedNodeHref}
+      />
+    )
+  }
+
+  const detailsModalContentByMode = (() => {
+    if (isReverseMode && selectedSubjectRow && selectedNode) {
+      if (subjectPermissionsQuery.isLoading) {
+        return (
+          <Styled.SpinContainer>
+            <Spin tip="Loading subject permissions..." />
+          </Styled.SpinContainer>
+        )
+      }
+
+      if (subjectPermissionsQuery.isError) {
+        return (
+          <Alert
+            type="error"
+            message="Error while loading subject permissions"
+            description={getQueryErrorMessage(subjectPermissionsQuery.error)}
+          />
+        )
+      }
+
+      if (subjectPermissionsQuery.data) {
+        return (
+          <RbacRoleDetailsModalContent
+            data={subjectPermissionsQuery.data}
+            kindsWithVersion={kindsData?.kindsWithVersion ?? []}
+            token={roleDetailsToken}
+          />
+        )
+      }
+
+      return (
+        <Descriptions size="small" bordered column={2} style={{ marginBottom: 16 }}>
+          <Descriptions.Item label="Subject">{`${selectedSubjectRow.subject.kind}: ${selectedSubjectRow.subject.name}`}</Descriptions.Item>
+          <Descriptions.Item label="Namespace">
+            {selectedSubjectRow.subject.namespace ?? <Typography.Text type="secondary">cluster-wide</Typography.Text>}
+          </Descriptions.Item>
+          <Descriptions.Item label="Roles">{selectedSubjectRow.rolesCount}</Descriptions.Item>
+          <Descriptions.Item label="Bindings">{selectedSubjectRow.bindingsCount}</Descriptions.Item>
+          <Descriptions.Item label="Assessment" span={2}>
+            <RbacAssessmentBar assessment={selectedSubjectRow.assessment} size="compact" />
+          </Descriptions.Item>
+          <Descriptions.Item label="Matched Rules">{selectedSubjectRow.matchedRuleCount}</Descriptions.Item>
+          <Descriptions.Item label="Role Bindings" span={2}>
+            {renderRoleBindings({
+              roleBindings: selectedSubjectRow.roleBindings,
+              clusterId,
+              baseFactoriesMapping,
+              token,
+            })}
+          </Descriptions.Item>
+        </Descriptions>
+      )
+    }
+
+    if (!selectedRoleRow || !selectedNode) {
+      return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No row is selected." />
+    }
+
+    return (
+      <>
+        <Descriptions size="small" bordered column={2} style={{ marginBottom: 16 }}>
+          <Descriptions.Item label="Role">{`${selectedRoleRow.roleKind}: ${selectedRoleRow.roleName}`}</Descriptions.Item>
+          <Descriptions.Item label="Namespace">{selectedRoleRow.namespace}</Descriptions.Item>
+          <Descriptions.Item label="Accounts">{selectedRoleRow.accountBindings.length}</Descriptions.Item>
+          <Descriptions.Item label="Aggregators">{selectedRoleRow.aggregationSourcesCount}</Descriptions.Item>
+          <Descriptions.Item label="Assessment" span={2}>
+            <RbacAssessmentBar assessment={selectedRoleRow.assessment} size="compact" />
+          </Descriptions.Item>
+          <Descriptions.Item label="Matched Rules">{selectedRoleRow.matchedRuleCount}</Descriptions.Item>
+          <Descriptions.Item label="Aggregated">
+            {selectedRoleRow.aggregated ? (
+              <Tag color="green">yes</Tag>
+            ) : (
+              <Typography.Text type="secondary">no</Typography.Text>
+            )}
+          </Descriptions.Item>
+          <Descriptions.Item label="Account List" span={2}>
+            {renderAccountBindings({
+              accountBindings: selectedRoleRow.accountBindings,
+              clusterId,
+              baseFactoriesMapping,
+              token,
+            })}
+          </Descriptions.Item>
+        </Descriptions>
+
+        {primaryRoleNode && <div>{detailsModalContent}</div>}
+      </>
+    )
+  })()
+
   return (
     <Styled.Container ref={containerRef}>
       <Styled.Chrome ref={chromeRef}>
@@ -1025,7 +1269,7 @@ export const RbacTable: FC<TRbacTableProps> = ({ clusterId, mode = 'role' }) => 
               <span>Roles: {stats.matchedRoles}</span>
               <span>Bindings: {stats.matchedBindings}</span>
               <span>Subjects: {stats.matchedSubjects}</span>
-              <span>Rows: {filteredRows.length}</span>
+              <span>Rows: {visibleRowsCount}</span>
             </Styled.StatsMetrics>
 
             <Styled.ScopeFilters>
@@ -1060,65 +1304,15 @@ export const RbacTable: FC<TRbacTableProps> = ({ clusterId, mode = 'role' }) => 
 
       {content}
       <Modal
-        open={Boolean(selectedRow)}
+        open={isReverseMode ? Boolean(selectedSubjectRow) : Boolean(selectedRoleRow)}
         onCancel={() => setSelectedRowKey(null)}
         footer={null}
         width={1400}
         centered
         destroyOnHidden
-        title={
-          // eslint-disable-next-line no-nested-ternary
-          reverseSubjectTitleNode ? (
-            <RbacModalTitleLabel
-              badgeId={`rbac-table-modal-title-${reverseSubjectTitleNode.type}-${
-                reverseSubjectTitleNode.namespace ?? ''
-              }-${reverseSubjectTitleNode.name}`}
-              node={reverseSubjectTitleNode}
-            />
-          ) : selectedNode ? (
-            <RbacModalTitleLabel
-              badgeId={`rbac-table-modal-title-${selectedNode.id}`}
-              node={selectedNode}
-              href={selectedNodeHref}
-            />
-          ) : (
-            'RBAC role details'
-          )
-        }
+        title={detailsModalTitle}
       >
-        {!selectedRow || !selectedNode ? (
-          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No row is selected." />
-        ) : (
-          <>
-            <Descriptions size="small" bordered column={2} style={{ marginBottom: 16 }}>
-              <Descriptions.Item label="Role">{`${selectedRow.roleKind}: ${selectedRow.roleName}`}</Descriptions.Item>
-              <Descriptions.Item label="Namespace">{selectedRow.namespace}</Descriptions.Item>
-              <Descriptions.Item label="Accounts">{selectedRow.accountBindings.length}</Descriptions.Item>
-              <Descriptions.Item label="Aggregators">{selectedRow.aggregationSourcesCount}</Descriptions.Item>
-              <Descriptions.Item label="Assessment" span={2}>
-                <RbacAssessmentBar assessment={selectedRow.assessment} size="compact" />
-              </Descriptions.Item>
-              <Descriptions.Item label="Matched Rules">{selectedRow.matchedRuleCount}</Descriptions.Item>
-              <Descriptions.Item label="Aggregated">
-                {selectedRow.aggregated ? (
-                  <Tag color="green">yes</Tag>
-                ) : (
-                  <Typography.Text type="secondary">no</Typography.Text>
-                )}
-              </Descriptions.Item>
-              <Descriptions.Item label="Account List" span={2}>
-                {renderAccountBindings({
-                  accountBindings: selectedRow.accountBindings,
-                  clusterId,
-                  baseFactoriesMapping,
-                  token,
-                })}
-              </Descriptions.Item>
-            </Descriptions>
-
-            {(isReverseMode || primaryRoleNode) && <div>{detailsModalContent}</div>}
-          </>
-        )}
+        {detailsModalContentByMode}
       </Modal>
       <Modal
         open={Boolean(selectedAggregatorRow)}

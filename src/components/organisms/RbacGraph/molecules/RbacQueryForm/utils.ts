@@ -1,7 +1,11 @@
-import type { TRbacQueryPayload, TRbacReverseQueryPayload } from 'localTypes/rbacGraph'
-import { DEFAULT_REVERSE_SPEC, DEFAULT_SPEC } from './constants'
+import type {
+  TRbacQueryPayload,
+  TRbacReverseQueryPayload,
+  TRbacSubjectsBySelectorGraphPayload,
+} from 'localTypes/rbacGraph'
+import { DEFAULT_REVERSE_SPEC, DEFAULT_SPEC, DEFAULT_SUBJECTS_BY_SELECTOR_GRAPH_SPEC } from './constants'
 
-export type TRbacQueryFormPayload = TRbacQueryPayload | TRbacReverseQueryPayload
+export type TRbacQueryFormPayload = TRbacQueryPayload | TRbacReverseQueryPayload | TRbacSubjectsBySelectorGraphPayload
 
 export const updateSpec = <T extends TRbacQueryFormPayload>(prev: T, patch: Partial<T['spec']>): T =>
   ({
@@ -38,6 +42,8 @@ export const getScopeIdentityCount = (spec: TRbacQueryFormPayload['spec']) =>
     'impersonateUser' in spec && Boolean(spec.impersonateUser),
     'impersonateGroup' in spec && Boolean(spec.impersonateGroup),
     'directOnly' in spec && spec.directOnly !== DEFAULT_REVERSE_SPEC.directOnly,
+    'expandImplicitGroups' in spec &&
+      spec.expandImplicitGroups !== DEFAULT_SUBJECTS_BY_SELECTOR_GRAPH_SPEC.expandImplicitGroups,
   ].filter(Boolean).length
 
 export const getRuntimeLimitsCount = (spec: TRbacQueryPayload['spec']) =>

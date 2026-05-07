@@ -1,4 +1,8 @@
-import type { TRbacQueryPayload, TRbacReverseQueryPayload } from 'localTypes/rbacGraph'
+import type {
+  TRbacQueryPayload,
+  TRbacReverseQueryPayload,
+  TRbacSubjectsBySelectorGraphPayload,
+} from 'localTypes/rbacGraph'
 
 export const DEFAULT_SPEC: TRbacQueryPayload['spec'] = {
   selector: {
@@ -31,5 +35,19 @@ export const DEFAULT_REVERSE_SPEC: TRbacReverseQueryPayload['spec'] = {
   matchMode: 'any',
   wildcardMode: 'expand',
   directOnly: false,
+  filterPhantomAPIs: true,
+}
+
+export const DEFAULT_SUBJECTS_BY_SELECTOR_GRAPH_SPEC: TRbacSubjectsBySelectorGraphPayload['spec'] = {
+  selector: {
+    apiGroups: [],
+    resources: [],
+    verbs: [],
+    resourceNames: [],
+    nonResourceURLs: [],
+  },
+  matchMode: 'any',
+  wildcardMode: 'expand',
+  expandImplicitGroups: false,
   filterPhantomAPIs: true,
 }

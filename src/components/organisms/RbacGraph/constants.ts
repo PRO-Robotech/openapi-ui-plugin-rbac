@@ -1,4 +1,9 @@
-import type { TRbacQueryPayload, TRbacReverseQueryPayload, TRbacGraphOptions, TRbacNode } from 'localTypes/rbacGraph'
+import type {
+  TRbacQueryPayload,
+  TRbacSubjectsBySelectorGraphPayload,
+  TRbacGraphOptions,
+  TRbacNode,
+} from 'localTypes/rbacGraph'
 
 export const LEGEND = [
   { label: 'Grants', color: '#0f766e' },
@@ -24,13 +29,12 @@ export const DEFAULT_PAYLOAD: TRbacQueryPayload = {
   },
 }
 
-export const DEFAULT_REVERSE_PAYLOAD: TRbacReverseQueryPayload = {
+export const DEFAULT_REVERSE_PAYLOAD: TRbacSubjectsBySelectorGraphPayload = {
   spec: {
-    subject: { kind: '', name: '' },
     selector: { apiGroups: [], resources: [], verbs: [], resourceNames: [], nonResourceURLs: [] },
     matchMode: 'any',
     wildcardMode: 'expand',
-    directOnly: false,
+    expandImplicitGroups: false,
     filterPhantomAPIs: true,
   },
 }

@@ -11,7 +11,12 @@ import {
 } from '@ant-design/icons'
 import { Alert, Button, Checkbox, Collapse, Input, InputNumber, Select, theme } from 'antd'
 import type { CollapseProps } from 'antd'
-import type { TRbacQueryPayload, TRbacReverseQueryPayload, TRbacSubjectKind } from 'localTypes/rbacGraph'
+import type {
+  TRbacQueryPayload,
+  TRbacReverseQueryPayload,
+  TRbacSubjectKind,
+  TRbacSubjectsBySelectorGraphPayload,
+} from 'localTypes/rbacGraph'
 import { DEFAULT_SPEC } from './constants'
 import {
   updateSpec,
@@ -111,13 +116,16 @@ export const RbacQueryForm = <TPayload extends TRbacQueryFormPayload>({
   const { spec } = value
   const { selector } = spec
   const isReverseMode = queryMode === 'subject'
-  const reverseSpec = isReverseMode ? (spec as TRbacReverseQueryPayload['spec']) : null
+  const reverseSpec = isReverseMode && 'subject' in spec ? (spec as TRbacReverseQueryPayload['spec']) : null
+  const subjectsBySelectorGraphSpec =
+    isReverseMode && 'expandImplicitGroups' in spec ? (spec as TRbacSubjectsBySelectorGraphPayload['spec']) : null
   const roleSpec = !isReverseMode ? (spec as TRbacQueryPayload['spec']) : null
   const defaultActiveSectionKeys = useMemo(() => {
-    if (isReverseMode) return ['subject', 'primary-selectors', 'scope-identity']
+    if (reverseSpec) return ['subject', 'primary-selectors', 'scope-identity']
+    if (isReverseMode) return ['primary-selectors', 'scope-identity']
     if (showRuntimeLimits) return ['primary-selectors', 'scope-identity', 'runtime-limits']
     return ['primary-selectors', 'scope-identity']
-  }, [isReverseMode, showRuntimeLimits])
+  }, [isReverseMode, reverseSpec, showRuntimeLimits])
   const [activeSectionKeys, setActiveSectionKeys] = useState<string[]>(defaultActiveSectionKeys)
   const [showSubjectValidation, setShowSubjectValidation] = useState(false)
 
@@ -156,6 +164,13 @@ export const RbacQueryForm = <TPayload extends TRbacQueryFormPayload>({
     return null
   }, [reverseSpec])
 
+  const selectorValidationMessage = useMemo(() => {
+    if (!subjectsBySelectorGraphSpec) return null
+    if (getPrimarySelectorCount(subjectsBySelectorGraphSpec) > 0) return null
+
+    return 'Select at least one permission selector before running the reverse query.'
+  }, [subjectsBySelectorGraphSpec])
+
   const updateSubject = useCallback(
     (patch: Partial<TRbacReverseQueryPayload['spec']['subject']>) => {
       if (!reverseSpec) return
@@ -182,6 +197,74 @@ export const RbacQueryForm = <TPayload extends TRbacQueryFormPayload>({
     }),
     [token.borderRadiusLG, token.colorFillSecondary, token.colorPrimary],
   )
+
+  const scopeSpecificControl = useMemo(() => {
+    if (roleSpec) {
+      return (
+        <Styled.FormRow>
+          <Styled.Label $color={token.colorText}>Namespace Scope Strict</Styled.Label>
+          <Styled.CheckboxWrap>
+            <Checkbox
+              checked={roleSpec.namespaceScope?.strict ?? false}
+              onChange={e => {
+                const strict = e.target.checked
+                const ns = roleSpec.namespaceScope?.namespaces ?? []
+                onChange(
+                  updateSpec(value as TRbacQueryPayload, {
+                    namespaceScope: strict || ns.length > 0 ? { namespaces: ns, strict } : undefined,
+                  }) as TPayload,
+                )
+              }}
+            >
+              Restrict namespace matches strictly
+            </Checkbox>
+          </Styled.CheckboxWrap>
+        </Styled.FormRow>
+      )
+    }
+
+    if (reverseSpec) {
+      return (
+        <Styled.FormRow>
+          <Styled.Label $color={token.colorText}>Direct Only</Styled.Label>
+          <Styled.CheckboxWrap>
+            <Checkbox
+              checked={Boolean(reverseSpec.directOnly)}
+              onChange={e =>
+                onChange(updateSpec(value as TRbacReverseQueryPayload, { directOnly: e.target.checked }) as TPayload)
+              }
+            >
+              Include direct bindings only
+            </Checkbox>
+          </Styled.CheckboxWrap>
+        </Styled.FormRow>
+      )
+    }
+
+    if (subjectsBySelectorGraphSpec) {
+      return (
+        <Styled.FormRow>
+          <Styled.Label $color={token.colorText}>Expand Implicit Groups</Styled.Label>
+          <Styled.CheckboxWrap>
+            <Checkbox
+              checked={Boolean(subjectsBySelectorGraphSpec.expandImplicitGroups)}
+              onChange={e =>
+                onChange(
+                  updateSpec(value as TRbacSubjectsBySelectorGraphPayload, {
+                    expandImplicitGroups: e.target.checked,
+                  }) as TPayload,
+                )
+              }
+            >
+              Expand service account groups
+            </Checkbox>
+          </Styled.CheckboxWrap>
+        </Styled.FormRow>
+      )
+    }
+
+    return null
+  }, [onChange, reverseSpec, roleSpec, subjectsBySelectorGraphSpec, token.colorText, value])
 
   const sectionItems = useMemo<CollapseProps['items']>(
     () => [
@@ -435,44 +518,7 @@ export const RbacQueryForm = <TPayload extends TRbacQueryFormPayload>({
               </Styled.CheckboxWrap>
             </Styled.FormRow>
 
-            {roleSpec ? (
-              <Styled.FormRow>
-                <Styled.Label $color={token.colorText}>Namespace Scope Strict</Styled.Label>
-                <Styled.CheckboxWrap>
-                  <Checkbox
-                    checked={roleSpec.namespaceScope?.strict ?? false}
-                    onChange={e => {
-                      const strict = e.target.checked
-                      const ns = roleSpec.namespaceScope?.namespaces ?? []
-                      onChange(
-                        updateSpec(value as TRbacQueryPayload, {
-                          namespaceScope: strict || ns.length > 0 ? { namespaces: ns, strict } : undefined,
-                        }) as TPayload,
-                      )
-                    }}
-                  >
-                    Restrict namespace matches strictly
-                  </Checkbox>
-                </Styled.CheckboxWrap>
-              </Styled.FormRow>
-            ) : (
-              <Styled.FormRow>
-                <Styled.Label $color={token.colorText}>Direct Only</Styled.Label>
-                <Styled.CheckboxWrap>
-                  <Checkbox
-                    checked={Boolean(reverseSpec?.directOnly)}
-                    onChange={e =>
-                      reverseSpec &&
-                      onChange(
-                        updateSpec(value as TRbacReverseQueryPayload, { directOnly: e.target.checked }) as TPayload,
-                      )
-                    }
-                  >
-                    Include direct bindings only
-                  </Checkbox>
-                </Styled.CheckboxWrap>
-              </Styled.FormRow>
-            )}
+            {scopeSpecificControl}
           </Styled.SectionGrid>
         ),
       },
@@ -546,6 +592,7 @@ export const RbacQueryForm = <TPayload extends TRbacQueryFormPayload>({
     [
       onChange,
       onSelectorChange,
+      scopeSpecificControl,
       activeSectionKeys,
       showRuntimeLimits,
       reverseSpec,
@@ -563,7 +610,7 @@ export const RbacQueryForm = <TPayload extends TRbacQueryFormPayload>({
   )
 
   const handleSubmit = useCallback(() => {
-    if (subjectValidationMessage) {
+    if (subjectValidationMessage || selectorValidationMessage) {
       setShowSubjectValidation(true)
       return
     }
@@ -575,7 +622,7 @@ export const RbacQueryForm = <TPayload extends TRbacQueryFormPayload>({
     setShowSubjectValidation(false)
     setActiveSectionKeys([])
     onSubmit()
-  }, [onSubmit, subjectValidationMessage])
+  }, [onSubmit, selectorValidationMessage, subjectValidationMessage])
 
   const handleResetClick = useCallback(() => {
     setShowSubjectValidation(false)
@@ -611,8 +658,8 @@ export const RbacQueryForm = <TPayload extends TRbacQueryFormPayload>({
         </Styled.Actions>
       </Styled.Header>
 
-      {showSubjectValidation && subjectValidationMessage && isReverseMode && (
-        <Alert type="warning" showIcon message={subjectValidationMessage} />
+      {showSubjectValidation && (subjectValidationMessage || selectorValidationMessage) && isReverseMode && (
+        <Alert type="warning" showIcon message={subjectValidationMessage ?? selectorValidationMessage} />
       )}
 
       <Collapse
