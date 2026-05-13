@@ -72,18 +72,17 @@ export const renderSubjectLabel = ({
   baseFactoriesMapping?: Record<string, string>
 }) => {
   const { subject } = row
-  const href =
-    subject.kind === 'ServiceAccount' && !subject.phantom
-      ? getRbacResourceHref({
-          clusterId,
-          node: {
-            type: 'ServiceAccount',
-            name: subject.name,
-            namespace: subject.namespace,
-          },
-          baseFactoriesMapping,
-        })
-      : undefined
+  const href = !subject.phantom
+    ? getRbacResourceHref({
+        clusterId,
+        node: {
+          type: subject.kind,
+          name: subject.name,
+          namespace: subject.namespace,
+        },
+        baseFactoriesMapping,
+      })
+    : undefined
 
   return (
     <LinkedResourceLabel
@@ -202,18 +201,17 @@ export const renderAccountBindings = ({
                 const { subject } = accountBinding
                 if (!subject) return null
                 const { key, kind, name, namespace } = subject
-                const subjectHref =
-                  kind === 'ServiceAccount' && !subject.phantom
-                    ? getRbacResourceHref({
-                        clusterId,
-                        node: {
-                          type: 'ServiceAccount',
-                          name,
-                          namespace,
-                        },
-                        baseFactoriesMapping,
-                      })
-                    : undefined
+                const subjectHref = !subject.phantom
+                  ? getRbacResourceHref({
+                      clusterId,
+                      node: {
+                        type: kind,
+                        name,
+                        namespace,
+                      },
+                      baseFactoriesMapping,
+                    })
+                  : undefined
 
                 return (
                   <RbacResourceLabel

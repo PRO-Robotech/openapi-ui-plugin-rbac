@@ -1,10 +1,12 @@
+/* eslint-disable max-lines-per-function */
 import React, { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ClearOutlined, FilterOutlined } from '@ant-design/icons'
 import { useKindsRaw } from '@prorobotech/openapi-k8s-toolkit'
 import { Alert, Button, Card, Empty, Flex, Select, Spin, Typography, theme } from 'antd'
 import { FOOTER_HEIGHT } from 'constants/blocksSizes'
 import { useRbacRoleDetailsQuery } from 'hooks/useRbacRoleDetailsQuery'
-import type { TRbacNode } from 'localTypes/rbacGraph'
+import { useRbacSubjectPermissionsQuery } from 'hooks/useRbacSubjectPermissionsQuery'
+import type { TRbacNode, TRbacReverseQueryPayload, TRbacSubjectKind } from 'localTypes/rbacGraph'
 import { RbacRoleDetailsModalContent } from 'components/organisms/RbacGraph/molecules'
 import {
   applyInlineFilters,
@@ -19,7 +21,7 @@ import { defaultSelectorOptions, defaultQueryBehavior, MIN_RESULTS_HEIGHT, CARD_
 
 export type TRbacInlineDetailsSectionData = {
   clusterId: string
-  kind: Extract<TRbacNode['type'], 'Role' | 'ClusterRole'>
+  kind: Extract<TRbacNode['type'], 'Role' | 'ClusterRole' | 'User' | 'Group' | 'ServiceAccount'>
   name: string
   namespace?: string
   title?: string
@@ -46,23 +48,53 @@ export const RbacInlineDetailsSection: FC<TRbacInlineDetailsSectionProps> = ({ d
     isEnabled: Boolean(data.clusterId),
   })
 
-  const node = useMemo<Pick<TRbacNode, 'type' | 'name' | 'namespace'>>(
-    () => ({
-      type: data.kind,
-      name: data.name,
-      namespace: data.kind === 'Role' ? data.namespace : undefined,
-    }),
-    [data.kind, data.name, data.namespace],
+  const isRoleDetails = data.kind === 'Role' || data.kind === 'ClusterRole'
+  const roleNode = useMemo<Pick<TRbacNode, 'type' | 'name' | 'namespace'> | null>(
+    () =>
+      isRoleDetails
+        ? {
+            type: data.kind,
+            name: data.name,
+            namespace: data.kind === 'Role' ? data.namespace : undefined,
+          }
+        : null,
+    [data.kind, data.name, data.namespace, isRoleDetails],
   )
+  const subjectPayload = useMemo<TRbacReverseQueryPayload | null>(() => {
+    if (isRoleDetails) return null
+
+    const subjectKind = data.kind as TRbacSubjectKind
+
+    return {
+      spec: {
+        subject: {
+          kind: subjectKind,
+          name: data.name,
+          ...(subjectKind === 'ServiceAccount' && data.namespace ? { namespace: data.namespace } : {}),
+        },
+        selector: EMPTY_RBAC_INLINE_FILTER,
+        matchMode: defaultQueryBehavior.matchMode,
+        wildcardMode: defaultQueryBehavior.wildcardMode,
+        directOnly: false,
+        filterPhantomAPIs: defaultQueryBehavior.filterPhantomAPIs,
+      },
+    }
+  }, [data.kind, data.name, data.namespace, isRoleDetails])
 
   const roleDetailsQuery = useRbacRoleDetailsQuery({
     clusterId: data.clusterId,
-    node,
+    node: roleNode,
     selector: EMPTY_RBAC_INLINE_FILTER,
     matchMode: defaultQueryBehavior.matchMode,
     wildcardMode: defaultQueryBehavior.wildcardMode,
     filterPhantomAPIs: defaultQueryBehavior.filterPhantomAPIs,
   })
+  const subjectDetailsQuery = useRbacSubjectPermissionsQuery({
+    clusterId: data.clusterId,
+    payload: subjectPayload,
+    enabled: Boolean(subjectPayload),
+  })
+  const detailsQuery = isRoleDetails ? roleDetailsQuery : subjectDetailsQuery
 
   const hasResourceFilter =
     filter.apiGroups.length > 0 || filter.resources.length > 0 || filter.resourceNames.length > 0
@@ -70,19 +102,19 @@ export const RbacInlineDetailsSection: FC<TRbacInlineDetailsSectionProps> = ({ d
   const hasAnyFilter = hasResourceFilter || hasNonResourceFilter || filter.verbs.length > 0
 
   const selectorOptions = useMemo(() => {
-    if (!roleDetailsQuery.data) return defaultSelectorOptions
+    if (!detailsQuery.data) return defaultSelectorOptions
 
-    return computeAvailableOptions(roleDetailsQuery.data, filter)
-  }, [filter, roleDetailsQuery.data])
+    return computeAvailableOptions(detailsQuery.data, filter)
+  }, [detailsQuery.data, filter])
 
   const filteredData = useMemo(() => {
-    if (!roleDetailsQuery.data) return null
+    if (!detailsQuery.data) return null
 
-    return applyInlineFilters(roleDetailsQuery.data, filter)
-  }, [filter, roleDetailsQuery.data])
+    return applyInlineFilters(detailsQuery.data, filter)
+  }, [detailsQuery.data, filter])
 
   const content = (() => {
-    if (roleDetailsQuery.isLoading) {
+    if (detailsQuery.isLoading) {
       return (
         <div style={{ display: 'flex', justifyContent: 'center', padding: '24px 0' }}>
           <Spin tip="Loading RBAC details..." />
@@ -90,12 +122,12 @@ export const RbacInlineDetailsSection: FC<TRbacInlineDetailsSectionProps> = ({ d
       )
     }
 
-    if (roleDetailsQuery.isError) {
+    if (detailsQuery.isError) {
       return (
         <Alert
           type="error"
           message="Error while loading RBAC details"
-          description={getQueryErrorMessage(roleDetailsQuery.error)}
+          description={getQueryErrorMessage(detailsQuery.error)}
         />
       )
     }
@@ -239,7 +271,7 @@ export const RbacInlineDetailsSection: FC<TRbacInlineDetailsSectionProps> = ({ d
             />
             <Select
               allowClear
-              loading={roleDetailsQuery.isLoading}
+              loading={detailsQuery.isLoading}
               mode="multiple"
               disabled={hasResourceFilter || selectorOptions.nonResourceURLs.length === 0}
               maxTagCount={1}

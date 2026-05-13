@@ -1,12 +1,9 @@
 import React, { FC, useMemo } from 'react'
 import { Alert, Empty, Typography } from 'antd'
-import {
-  DynamicComponents,
-  DynamicRendererWithProviders,
-  type TDynamicComponentsAppTypeMap,
-} from '@prorobotech/openapi-k8s-toolkit'
+import { DynamicComponents, type TDynamicComponentsAppTypeMap } from '@prorobotech/openapi-k8s-toolkit'
 import { useParams } from 'react-router-dom'
 import { RbacPageShell } from 'components'
+import { RbacFactoryRenderer } from 'components/organisms'
 import {
   RbacInlineDetailsSection,
   type TRbacInlineDetailsSectionData,
@@ -78,11 +75,9 @@ export const RoleDetailsPage: FC<TRoleDetailsPageProps> = ({ cluster }) => {
       <Typography.Title level={4} style={{ display: 'none' }}>
         Role details
       </Typography.Title>
-      <DynamicRendererWithProviders<TRoleDetailsPageComponentMap>
+      <RbacFactoryRenderer<TRoleDetailsPageComponentMap>
         components={components}
-        items={factoryData.data}
-        urlsToFetch={factoryData.urlsToFetch}
-        effectiveReqIndexes={factoryData.effectiveReqIndexes}
+        factoryData={factoryData}
         theme={mode}
       />
     </RbacPageShell>

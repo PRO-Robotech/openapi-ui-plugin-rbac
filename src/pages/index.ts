@@ -1,3 +1,4 @@
+export { AccountDetailsPage } from './AccountDetailsPage'
 export { ClusterRoleDetailsPage } from './ClusterRoleDetailsPage'
 export { GraphReversePage } from './GraphReversePage'
 export { RbacPage } from './RbacPage'

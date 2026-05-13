@@ -2,6 +2,7 @@
 import React, { FC } from 'react'
 import { Routes, Route, Navigate, useInRouterContext } from 'react-router-dom'
 import {
+  AccountDetailsPage,
   ClusterRoleDetailsPage,
   GraphReversePage,
   RbacPage,
@@ -98,6 +99,34 @@ export const AppInner: FC<TAppInnerProps> = ({
         path="clusterroles/:name"
         element={
           <ClusterRoleDetailsPage
+            cluster={cluster}
+            namespace={namespace}
+            syntheticProject={syntheticProject}
+            pluginName={pluginName}
+            pluginPath={pluginPath}
+            toggleTheme={toggleTheme}
+          />
+        }
+      />
+
+      <Route
+        path="accounts/serviceaccounts/:namespace/:name"
+        element={
+          <AccountDetailsPage
+            cluster={cluster}
+            namespace={namespace}
+            syntheticProject={syntheticProject}
+            pluginName={pluginName}
+            pluginPath={pluginPath}
+            toggleTheme={toggleTheme}
+          />
+        }
+      />
+
+      <Route
+        path="accounts/:accountKind/:name"
+        element={
+          <AccountDetailsPage
             cluster={cluster}
             namespace={namespace}
             syntheticProject={syntheticProject}

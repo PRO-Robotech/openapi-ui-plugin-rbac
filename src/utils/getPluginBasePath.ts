@@ -9,6 +9,14 @@ export const getPluginBasePath = (pathname: string) => {
     return `/${segments.slice(0, -2).join('/')}`
   }
 
+  if (segments.at(-4) === 'accounts' && segments.at(-3) === 'serviceaccounts') {
+    return `/${segments.slice(0, -4).join('/')}`
+  }
+
+  if (segments.at(-3) === 'accounts' && (segments.at(-2) === 'users' || segments.at(-2) === 'groups')) {
+    return `/${segments.slice(0, -3).join('/')}`
+  }
+
   if (
     segments.at(-1) === 'rbac' ||
     segments.at(-1) === 'table' ||
