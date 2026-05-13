@@ -6,7 +6,13 @@ import { ArrowLeftOutlined, ArrowRightOutlined } from '@ant-design/icons'
 import { RbacResourceLink } from 'components/organisms/RbacGraph/atoms/RbacResourceLink'
 import { RbacResourceLabel } from 'components/organisms/RbacGraph/atoms/RbacResourceLabel'
 import { getRbacResourceHref } from 'utils/rbacResourceLink'
-import { type TTableAccountBinding, type TRoleTableRow, type TTableAggregationSource } from './buildRoleTableRows'
+import {
+  type TSubjectTableRow,
+  type TTableAccountBinding,
+  type TTableRoleBinding,
+  type TRoleTableRow,
+  type TTableAggregationSource,
+} from './buildRoleTableRows'
 import { formatSubjectLabel, getScopeTagStyle } from './gettersAndFormatters'
 import { LinkedResourceLabel } from '../atoms'
 import { Styled } from '../styled'
@@ -56,6 +62,120 @@ export const renderRoleLabel = ({
   )
 }
 
+export const renderSubjectLabel = ({
+  row,
+  clusterId,
+  baseFactoriesMapping,
+}: {
+  row: TSubjectTableRow
+  clusterId: string
+  baseFactoriesMapping?: Record<string, string>
+}) => {
+  const { subject } = row
+  const href = !subject.phantom
+    ? getRbacResourceHref({
+        clusterId,
+        node: {
+          type: subject.kind,
+          name: subject.name,
+          namespace: subject.namespace,
+        },
+        baseFactoriesMapping,
+      })
+    : undefined
+
+  return (
+    <LinkedResourceLabel
+      badgeId={`rbac-table-subject-${row.subjectNodeId}`}
+      value={formatSubjectLabel(subject)}
+      badgeValue={subject.kind}
+      namespace={subject.namespace}
+      href={href}
+    />
+  )
+}
+
+export const renderRoleBindings = ({
+  roleBindings,
+  clusterId,
+  baseFactoriesMapping,
+  token,
+}: {
+  roleBindings: TTableRoleBinding[]
+  clusterId: string
+  baseFactoriesMapping?: Record<string, string>
+  token: ReturnType<typeof theme.useToken>['token']
+}) => {
+  if (roleBindings.length === 0) {
+    return <Typography.Text type="secondary">-</Typography.Text>
+  }
+
+  return (
+    <Styled.AccountBindingList>
+      {roleBindings.map(roleBinding => {
+        const roleHref = getRbacResourceHref({
+          clusterId,
+          node: {
+            type: roleBinding.role.kind,
+            name: roleBinding.role.name,
+            namespace: roleBinding.role.namespace,
+          },
+          baseFactoriesMapping,
+        })
+        const bindingHref = roleBinding.binding
+          ? getRbacResourceHref({
+              clusterId,
+              node: {
+                type: roleBinding.binding.kind,
+                name: roleBinding.binding.name,
+                namespace: roleBinding.binding.namespace,
+              },
+              baseFactoriesMapping,
+            })
+          : undefined
+
+        return (
+          <Styled.AccountBindingRow key={roleBinding.key}>
+            <Styled.AccountBindingSection>
+              <LinkedResourceLabel
+                badgeId={`rbac-table-subject-role-${roleBinding.role.key}`}
+                value={roleBinding.role.name}
+                badgeValue={roleBinding.role.kind}
+                namespace={roleBinding.role.namespace}
+                href={roleHref}
+              />
+            </Styled.AccountBindingSection>
+
+            <Styled.AccountBindingArrow>
+              <ArrowLeftOutlined />
+            </Styled.AccountBindingArrow>
+
+            <Styled.AccountBindingSection>
+              {roleBinding.binding ? (
+                <LinkedResourceLabel
+                  badgeId={`rbac-table-subject-binding-${roleBinding.binding.key}`}
+                  value={roleBinding.binding.name}
+                  badgeValue={roleBinding.binding.kind}
+                  namespace={roleBinding.binding.namespace}
+                  href={bindingHref}
+                />
+              ) : (
+                <Typography.Text type="secondary">no binding</Typography.Text>
+              )}
+            </Styled.AccountBindingSection>
+
+            <Styled.AccountBindingMain>
+              <Tag bordered style={getScopeTagStyle(roleBinding.scope, token)}>
+                {roleBinding.scope}
+              </Tag>
+            </Styled.AccountBindingMain>
+          </Styled.AccountBindingRow>
+        )
+      })}
+    </Styled.AccountBindingList>
+  )
+}
+
 export const renderAccountBindings = ({
   accountBindings,
   clusterId,
@@ -81,18 +201,17 @@ export const renderAccountBindings = ({
                 const { subject } = accountBinding
                 if (!subject) return null
                 const { key, kind, name, namespace } = subject
-                const subjectHref =
-                  kind === 'ServiceAccount' && !subject.phantom
-                    ? getRbacResourceHref({
-                        clusterId,
-                        node: {
-                          type: 'ServiceAccount',
-                          name,
-                          namespace,
-                        },
-                        baseFactoriesMapping,
-                      })
-                    : undefined
+                const subjectHref = !subject.phantom
+                  ? getRbacResourceHref({
+                      clusterId,
+                      node: {
+                        type: kind,
+                        name,
+                        namespace,
+                      },
+                      baseFactoriesMapping,
+                    })
+                  : undefined
 
                 return (
                   <RbacResourceLabel

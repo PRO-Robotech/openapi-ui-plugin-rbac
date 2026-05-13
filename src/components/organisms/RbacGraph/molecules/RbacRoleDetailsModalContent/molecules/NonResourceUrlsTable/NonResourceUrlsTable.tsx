@@ -3,20 +3,27 @@ import type { TKindWithVersion } from '@prorobotech/openapi-k8s-toolkit'
 import { GlobalOutlined } from '@ant-design/icons'
 import { Collapse, Table, Tag, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import type { TRbacRoleDetailsNonResourceUrlPermission } from 'localTypes/rbacGraph'
+import type { TRbacRoleDetailsNonResourceUrlPermission, TRbacSubjectPermissionGrantGroup } from 'localTypes/rbacGraph'
 import { getVerbColor, sortVerbs } from '../../utils'
 import type { TTokenLike } from '../../types'
 import { PermissionCell } from '../PermissionCell'
+import { GrantSourcesCell } from '../GrantSourcesCell'
 
 const { Text } = Typography
 
 type TNonResourceUrlsTableProps = {
   kindsWithVersion: TKindWithVersion[]
   permissions: TRbacRoleDetailsNonResourceUrlPermission[]
+  subjectGrantGroups?: TRbacSubjectPermissionGrantGroup[]
   token: TTokenLike
 }
 
-export const NonResourceUrlsTable: FC<TNonResourceUrlsTableProps> = ({ kindsWithVersion, permissions, token }) => {
+export const NonResourceUrlsTable: FC<TNonResourceUrlsTableProps> = ({
+  kindsWithVersion,
+  permissions,
+  subjectGrantGroups,
+  token,
+}) => {
   const verbs = useMemo(() => {
     const verbSet = new Set<string>()
     permissions.forEach(permission => {
@@ -25,6 +32,21 @@ export const NonResourceUrlsTable: FC<TNonResourceUrlsTableProps> = ({ kindsWith
 
     return sortVerbs(verbSet)
   }, [permissions])
+
+  const grantsByUrl = useMemo(() => {
+    const map = new Map<string, TRbacSubjectPermissionGrantGroup[]>()
+
+    ;(subjectGrantGroups ?? [])
+      .filter(grantGroup => grantGroup.type === 'non-resource')
+      .forEach(grantGroup => {
+        const key = grantGroup.nonResourceURL ?? ''
+        const groups = map.get(key) ?? []
+        groups.push(grantGroup)
+        map.set(key, groups)
+      })
+
+    return map
+  }, [subjectGrantGroups])
 
   const columns = useMemo<ColumnsType<TRbacRoleDetailsNonResourceUrlPermission>>(
     () => [
@@ -39,6 +61,18 @@ export const NonResourceUrlsTable: FC<TNonResourceUrlsTableProps> = ({ kindsWith
           </Text>
         ),
       },
+      ...(subjectGrantGroups
+        ? [
+            {
+              title: 'Granted By',
+              key: 'grantedBy',
+              width: 520,
+              render: (_: unknown, permission: TRbacRoleDetailsNonResourceUrlPermission) => (
+                <GrantSourcesCell groups={grantsByUrl.get(permission.url) ?? []} />
+              ),
+            },
+          ]
+        : []),
       ...verbs.map(verb => ({
         title: (
           <span style={{ color: getVerbColor(verb, token), fontSize: 11, textTransform: 'uppercase', fontWeight: 600 }}>
@@ -61,7 +95,7 @@ export const NonResourceUrlsTable: FC<TNonResourceUrlsTableProps> = ({ kindsWith
         ),
       })),
     ],
-    [kindsWithVersion, token, verbs],
+    [grantsByUrl, kindsWithVersion, subjectGrantGroups, token, verbs],
   )
 
   if (permissions.length === 0) return null

@@ -3,7 +3,9 @@ import React from 'react'
 import { theme } from 'antd'
 
 import {
+  type TSubjectTableRow,
   type TTableAccountBinding,
+  type TTableRoleBinding,
   type TRoleTableRow,
   type TTableScope,
   type TTableSubject,
@@ -28,6 +30,27 @@ export const getAccountBindingsSearchText = (accountBindings: TTableAccountBindi
 
 export const getRoleSearchText = (row: TRoleTableRow) =>
   [row.roleKind, row.roleName, row.namespace]
+    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    .join(' ')
+    .toLowerCase()
+
+export const getSubjectSearchText = (row: TSubjectTableRow) =>
+  [row.subject.kind, row.subject.name, row.subject.namespace]
+    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    .join(' ')
+    .toLowerCase()
+
+export const getRoleBindingsSearchText = (roleBindings: TTableRoleBinding[]) =>
+  roleBindings
+    .flatMap(roleBinding => [
+      roleBinding.role.kind,
+      roleBinding.role.name,
+      roleBinding.role.namespace,
+      roleBinding.binding?.kind,
+      roleBinding.binding?.name,
+      roleBinding.binding?.namespace,
+      roleBinding.scope,
+    ])
     .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
     .join(' ')
     .toLowerCase()

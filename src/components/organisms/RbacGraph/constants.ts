@@ -1,4 +1,9 @@
-import type { TRbacQueryPayload, TRbacGraphOptions, TRbacNode } from 'localTypes/rbacGraph'
+import type {
+  TRbacQueryPayload,
+  TRbacSubjectsBySelectorGraphPayload,
+  TRbacGraphOptions,
+  TRbacNode,
+} from 'localTypes/rbacGraph'
 
 export const LEGEND = [
   { label: 'Grants', color: '#0f766e' },
@@ -20,6 +25,16 @@ export const DEFAULT_PAYLOAD: TRbacQueryPayload = {
     podPhaseMode: 'active',
     maxPodsPerSubject: 20,
     maxWorkloadsPerPod: 10,
+    filterPhantomAPIs: true,
+  },
+}
+
+export const DEFAULT_REVERSE_PAYLOAD: TRbacSubjectsBySelectorGraphPayload = {
+  spec: {
+    selector: { apiGroups: [], resources: [], verbs: [], resourceNames: [], nonResourceURLs: [] },
+    matchMode: 'any',
+    wildcardMode: 'expand',
+    expandImplicitGroups: false,
     filterPhantomAPIs: true,
   },
 }

@@ -1,0 +1,1 @@
+export { AccountDetailsPage } from './AccountDetailsPage'

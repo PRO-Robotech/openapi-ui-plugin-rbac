@@ -23,6 +23,18 @@ export type TTableBinding = {
   namespace?: string
 }
 
+export type TTableRole = {
+  key: string
+  nodeId: string
+  kind: Extract<TRbacNode['type'], 'Role' | 'ClusterRole'>
+  name: string
+  namespace?: string
+  assessment?: TRbacAssessment
+  aggregated?: boolean
+  aggregationSources?: string[]
+  matchedRuleRefs?: TRbacNode['matchedRuleRefs']
+}
+
 export type TTableScope = 'cluster-wide' | 'narrowed' | 'same-ns' | 'cross-ns' | 'orphan'
 
 export type TTableRuleSummaryItem = {
@@ -34,6 +46,15 @@ export type TTableRuleSummaryItem = {
 export type TTableAccountBinding = {
   key: string
   subject?: TTableSubject
+  binding?: TTableBinding
+  scope: TTableScope
+  ruleCount: number
+  ruleSummary: TTableRuleSummaryItem[]
+}
+
+export type TTableRoleBinding = {
+  key: string
+  role: TTableRole
   binding?: TTableBinding
   scope: TTableScope
   ruleCount: number
@@ -56,6 +77,17 @@ export type TRoleTableRow = {
   aggregationSources: TTableAggregationSource[]
 }
 
+export type TSubjectTableRow = {
+  key: string
+  subjectNodeId: string
+  subject: TTableSubject
+  assessment?: TRbacAssessment
+  matchedRuleCount: number
+  rolesCount: number
+  bindingsCount: number
+  roleBindings: TTableRoleBinding[]
+}
+
 const ROLE_SORT_ORDER: Record<TRoleTableRow['roleKind'], number> = {
   ClusterRole: 0,
   Role: 1,
@@ -64,6 +96,7 @@ const ROLE_SORT_ORDER: Record<TRoleTableRow['roleKind'], number> = {
 const toSubjectKey = (subject: Pick<TTableSubject, 'kind' | 'namespace' | 'name'>) =>
   `${subject.kind}:${subject.namespace ?? ''}:${subject.name}`
 const toBindingKey = (node: TRbacNode) => `${node.type}:${node.namespace ?? ''}:${node.name}`
+const toRoleKey = (node: TRbacNode) => `${node.type}:${node.namespace ?? ''}:${node.name}`
 const toAggregationKey = (type: TRbacNode['type'], name: string, namespace?: string) =>
   `${type}:${namespace ?? ''}:${name}`
 
@@ -107,6 +140,15 @@ const sortAccountBindings = (left: TTableAccountBinding, right: TTableAccountBin
   (left.subject?.kind ?? '').localeCompare(right.subject?.kind ?? '') ||
   (left.subject?.namespace ?? '').localeCompare(right.subject?.namespace ?? '') ||
   (left.subject?.name ?? '').localeCompare(right.subject?.name ?? '') ||
+  (left.binding?.kind ?? '').localeCompare(right.binding?.kind ?? '') ||
+  (left.binding?.namespace ?? '').localeCompare(right.binding?.namespace ?? '') ||
+  (left.binding?.name ?? '').localeCompare(right.binding?.name ?? '') ||
+  left.scope.localeCompare(right.scope)
+
+const sortRoleBindings = (left: TTableRoleBinding, right: TTableRoleBinding) =>
+  left.role.kind.localeCompare(right.role.kind) ||
+  (left.role.namespace ?? '').localeCompare(right.role.namespace ?? '') ||
+  left.role.name.localeCompare(right.role.name) ||
   (left.binding?.kind ?? '').localeCompare(right.binding?.kind ?? '') ||
   (left.binding?.namespace ?? '').localeCompare(right.binding?.namespace ?? '') ||
   (left.binding?.name ?? '').localeCompare(right.binding?.name ?? '') ||
@@ -184,6 +226,18 @@ const normalizeTableSubject = ({
   }
 }
 
+const normalizeTableRole = (roleNode: TRbacNode & { type: TTableRole['kind'] }): TTableRole => ({
+  key: toRoleKey(roleNode),
+  nodeId: roleNode.id,
+  kind: roleNode.type,
+  name: roleNode.name,
+  namespace: roleNode.namespace,
+  assessment: roleNode.assessment,
+  aggregated: roleNode.aggregated,
+  aggregationSources: roleNode.aggregationSources,
+  matchedRuleRefs: roleNode.matchedRuleRefs,
+})
+
 const getAccountScope = ({
   roleNode,
   binding,
@@ -210,6 +264,40 @@ const getAccountScope = ({
   }
 
   return 'same-ns'
+}
+
+const mergeAssessments = (assessments: Array<TRbacAssessment | undefined>): TRbacAssessment | undefined => {
+  const present = assessments.filter((assessment): assessment is TRbacAssessment => Boolean(assessment))
+  if (present.length === 0) return undefined
+
+  const severityOrder = ['critical', 'high', 'medium', 'low']
+  const checkIDs = new Set<string>()
+  let criticalCount = 0
+  let highCount = 0
+  let mediumCount = 0
+  let lowCount = 0
+
+  present.forEach(assessment => {
+    criticalCount += assessment.criticalCount
+    highCount += assessment.highCount
+    mediumCount += assessment.mediumCount
+    lowCount += assessment.lowCount
+    assessment.checkIDs?.forEach(checkID => checkIDs.add(checkID))
+  })
+
+  const highestSeverity = severityOrder.find(severity =>
+    present.some(assessment => assessment.highestSeverity?.toLowerCase() === severity),
+  )
+
+  return {
+    highestSeverity,
+    criticalCount,
+    highCount,
+    mediumCount,
+    lowCount,
+    totalCount: criticalCount + highCount + mediumCount + lowCount,
+    checkIDs: Array.from(checkIDs).sort((left, right) => left.localeCompare(right)),
+  }
 }
 
 export const buildRoleTableRows = (graph: TGraph | null): TRoleTableRow[] => {
@@ -370,4 +458,96 @@ export const buildRoleTableRows = (graph: TGraph | null): TRoleTableRow[] => {
       left.namespace.localeCompare(right.namespace) ||
       left.roleName.localeCompare(right.roleName),
   )
+}
+
+export const buildSubjectTableRows = (graph: TGraph | null): TSubjectTableRow[] => {
+  if (!graph) return []
+
+  const nodeById = new Map(graph.nodes.map(node => [node.id, node] as const))
+  const bindingById = new Map<string, TTableBinding>()
+  const rolesBySubjectId = new Map<string, Map<string, TTableRoleBinding>>()
+
+  graph.nodes.forEach(node => {
+    if (node.type !== 'RoleBinding' && node.type !== 'ClusterRoleBinding') return
+
+    bindingById.set(node.id, {
+      key: toBindingKey(node),
+      kind: node.type,
+      name: node.name,
+      namespace: node.namespace,
+    })
+  })
+
+  graph.edges.forEach(edge => {
+    if (edge.type !== 'subjects') return
+
+    const fromNode = nodeById.get(edge.from)
+    const toNode = nodeById.get(edge.to)
+    const subjectNode = fromNode && SUBJECT_NODE_TYPES.has(fromNode.type) ? fromNode : toNode
+    const bindingNode =
+      fromNode && (fromNode.type === 'RoleBinding' || fromNode.type === 'ClusterRoleBinding') ? fromNode : toNode
+
+    if (!subjectNode || !bindingNode || !SUBJECT_NODE_TYPES.has(subjectNode.type)) return
+    if (bindingNode.type !== 'RoleBinding' && bindingNode.type !== 'ClusterRoleBinding') return
+
+    graph.edges.forEach(grantEdge => {
+      if (grantEdge.type !== 'grants') return
+
+      const grantFromNode = nodeById.get(grantEdge.from)
+      const grantToNode = nodeById.get(grantEdge.to)
+      const roleNode = grantFromNode && ROLE_NODE_TYPES.has(grantFromNode.type) ? grantFromNode : grantToNode
+      const grantBindingNode =
+        grantFromNode && (grantFromNode.type === 'RoleBinding' || grantFromNode.type === 'ClusterRoleBinding')
+          ? grantFromNode
+          : grantToNode
+
+      if (!roleNode || !grantBindingNode || !ROLE_NODE_TYPES.has(roleNode.type)) return
+      if (grantBindingNode.id !== bindingNode.id) return
+
+      const subject = normalizeTableSubject({
+        subjectNode: subjectNode as TRbacNode & { type: TTableSubject['kind'] },
+        binding: bindingById.get(bindingNode.id),
+      })
+      const role = normalizeTableRole(roleNode as TRbacNode & { type: TTableRole['kind'] })
+      const subjectRoles = rolesBySubjectId.get(subjectNode.id) ?? new Map<string, TTableRoleBinding>()
+      const binding = bindingById.get(bindingNode.id)
+
+      subjectRoles.set(`${role.key}:${binding?.key ?? 'orphan'}`, {
+        key: `${role.key}:${binding?.key ?? 'orphan'}`,
+        role,
+        binding,
+        scope: getAccountScope({
+          roleNode: roleNode as TRbacNode & { type: TRoleTableRow['roleKind'] },
+          binding,
+          subject,
+        }),
+        ruleCount: roleNode.matchedRuleRefs?.length ?? 0,
+        ruleSummary: buildRuleSummary(roleNode),
+      })
+      rolesBySubjectId.set(subjectNode.id, subjectRoles)
+    })
+  })
+
+  return graph.nodes
+    .filter((node): node is TRbacNode & { type: TTableSubject['kind'] } => SUBJECT_NODE_TYPES.has(node.type))
+    .map<TSubjectTableRow>(node => {
+      const subject = normalizeTableSubject({ subjectNode: node })
+      const roleBindings = Array.from(rolesBySubjectId.get(node.id)?.values() ?? []).sort(sortRoleBindings)
+      const roleByKey = new Map(roleBindings.map(roleBinding => [roleBinding.role.key, roleBinding.role] as const))
+      const bindingKeys = new Set(
+        roleBindings.flatMap(roleBinding => (roleBinding.binding ? [roleBinding.binding.key] : [])),
+      )
+
+      return {
+        key: node.id,
+        subjectNodeId: node.id,
+        subject,
+        assessment: mergeAssessments(Array.from(roleByKey.values()).map(role => role.assessment)),
+        matchedRuleCount: roleBindings.reduce((sum, roleBinding) => sum + roleBinding.ruleCount, 0),
+        rolesCount: roleByKey.size,
+        bindingsCount: bindingKeys.size,
+        roleBindings,
+      }
+    })
+    .sort((left, right) => sortSubjects(left.subject, right.subject))
 }

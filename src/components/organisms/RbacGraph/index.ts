@@ -1,1 +1,1 @@
-export { RbacGraph } from './RbacGraph'
+export { RbacGraph, RbacReverseGraph } from './RbacGraph'

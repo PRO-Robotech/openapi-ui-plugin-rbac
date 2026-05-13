@@ -41,6 +41,35 @@ export const getInternalClusterRoleHref = ({ name }: { name: string }) => {
   return `${basePath}/clusterroles/${encodeURIComponent(name)}`
 }
 
+export const getInternalServiceAccountHref = ({ namespace, name }: { namespace: string; name: string }) => {
+  if (!namespace || !name) {
+    return undefined
+  }
+
+  const pathname = typeof window === 'undefined' ? '' : window.location.pathname
+  const basePath = getPluginBasePath(pathname)
+
+  return `${basePath}/accounts/serviceaccounts/${encodeURIComponent(namespace)}/${encodeURIComponent(name)}`
+}
+
+export const getInternalSubjectHref = ({
+  kind,
+  name,
+}: {
+  kind: Extract<TRbacNode['type'], 'User' | 'Group'>
+  name: string
+}) => {
+  if (!name) {
+    return undefined
+  }
+
+  const pathname = typeof window === 'undefined' ? '' : window.location.pathname
+  const basePath = getPluginBasePath(pathname)
+  const subjectPath = kind === 'User' ? 'users' : 'groups'
+
+  return `${basePath}/accounts/${subjectPath}/${encodeURIComponent(name)}`
+}
+
 const RBAC_RESOURCE_ROUTE_CONFIG: Partial<Record<TRbacNode['type'], TResourceRouteConfig>> = {
   Role: {
     apiGroupVersion: 'rbac.authorization.k8s.io/v1',
@@ -87,6 +116,10 @@ export const getRbacResourceHref = ({
 }): string | undefined => {
   const resourceConfig = RBAC_RESOURCE_ROUTE_CONFIG[node.type]
 
+  if (node.type === 'User' || node.type === 'Group') {
+    return getInternalSubjectHref({ kind: node.type, name: node.name })
+  }
+
   if (!clusterId || !resourceConfig || !node.name) {
     return undefined
   }
@@ -101,6 +134,10 @@ export const getRbacResourceHref = ({
 
   if (node.type === 'ClusterRole') {
     return getInternalClusterRoleHref({ name: node.name })
+  }
+
+  if (node.type === 'ServiceAccount' && node.namespace) {
+    return getInternalServiceAccountHref({ namespace: node.namespace, name: node.name })
   }
 
   const runtimeFactoryConfig = getRuntimeFactoryConfig()
