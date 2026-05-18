@@ -7,7 +7,6 @@ import type { TRbacRoleDetailsNonResourceUrlPermission, TRbacSubjectPermissionGr
 import { getVerbColor, sortVerbs } from '../../utils'
 import type { TTokenLike } from '../../types'
 import { PermissionCell } from '../PermissionCell'
-import { GrantSourcesCell } from '../GrantSourcesCell'
 
 const { Text } = Typography
 
@@ -61,18 +60,6 @@ export const NonResourceUrlsTable: FC<TNonResourceUrlsTableProps> = ({
           </Text>
         ),
       },
-      ...(subjectGrantGroups
-        ? [
-            {
-              title: 'Granted By',
-              key: 'grantedBy',
-              width: 520,
-              render: (_: unknown, permission: TRbacRoleDetailsNonResourceUrlPermission) => (
-                <GrantSourcesCell groups={grantsByUrl.get(permission.url) ?? []} />
-              ),
-            },
-          ]
-        : []),
       ...verbs.map(verb => ({
         title: (
           <span style={{ color: getVerbColor(verb, token), fontSize: 11, textTransform: 'uppercase', fontWeight: 600 }}>
@@ -91,11 +78,12 @@ export const NonResourceUrlsTable: FC<TNonResourceUrlsTableProps> = ({
             token={token}
             kindsWithVersion={kindsWithVersion}
             matchValue={{ url: permission.url, verb }}
+            grantGroups={(grantsByUrl.get(permission.url) ?? []).filter(grantGroup => grantGroup.verb === verb)}
           />
         ),
       })),
     ],
-    [grantsByUrl, kindsWithVersion, subjectGrantGroups, token, verbs],
+    [grantsByUrl, kindsWithVersion, token, verbs],
   )
 
   if (permissions.length === 0) return null

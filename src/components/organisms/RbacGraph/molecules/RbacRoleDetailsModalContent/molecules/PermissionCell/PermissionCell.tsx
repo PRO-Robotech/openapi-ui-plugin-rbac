@@ -3,6 +3,7 @@ import { CheckCircleOutlined, CheckOutlined, MinusOutlined } from '@ant-design/i
 import { Popover } from 'antd'
 import type { TPermissionCellProps } from '../../types'
 import { RulePopoverContent } from '../RulePopoverContent'
+import { GrantSourcesCell } from '../GrantSourcesCell'
 import { Styled } from '../../styled'
 
 export const PermissionCell: FC<TPermissionCellProps> = ({
@@ -13,6 +14,7 @@ export const PermissionCell: FC<TPermissionCellProps> = ({
   token,
   kindsWithVersion,
   matchValue,
+  grantGroups,
 }) => {
   const [open, setOpen] = useState(false)
 
@@ -25,10 +27,11 @@ export const PermissionCell: FC<TPermissionCellProps> = ({
   }
 
   const hasOrigins = origins.length > 0
+  const hasGrantGroups = (grantGroups?.length ?? 0) > 0
   const isPhantom = existsInApi === false
   const content = (
     <Styled.PermissionCell
-      $clickable={hasOrigins}
+      $clickable={hasOrigins || hasGrantGroups}
       $phantom={isPhantom}
       $colorFillSecondary={token.colorFillSecondary}
       $borderRadius={token.borderRadius ?? 4}
@@ -38,22 +41,26 @@ export const PermissionCell: FC<TPermissionCellProps> = ({
     </Styled.PermissionCell>
   )
 
-  if (!hasOrigins) return content
+  if (!hasOrigins && !hasGrantGroups) return content
 
   return (
     <Popover
       content={
-        <RulePopoverContent
-          origins={origins}
-          matchContext={matchValue}
-          kindsWithVersion={kindsWithVersion}
-          token={token}
-        />
+        hasGrantGroups ? (
+          <GrantSourcesCell groups={grantGroups ?? []} />
+        ) : (
+          <RulePopoverContent
+            origins={origins}
+            matchContext={matchValue}
+            kindsWithVersion={kindsWithVersion}
+            token={token}
+          />
+        )
       }
-      title={`Granted by rule${origins.length > 1 ? 's' : ''}`}
-      trigger="click"
+      title={hasGrantGroups ? 'Granted By' : `Granted by rule${origins.length > 1 ? 's' : ''}`}
+      trigger={hasGrantGroups ? 'hover' : 'click'}
       placement="top"
-      overlayStyle={{ maxWidth: 460 }}
+      overlayStyle={{ maxWidth: hasGrantGroups ? 960 : 460 }}
       open={open}
       onOpenChange={setOpen}
     >

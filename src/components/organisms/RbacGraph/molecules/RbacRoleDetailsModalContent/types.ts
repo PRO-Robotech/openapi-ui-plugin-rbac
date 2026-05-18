@@ -3,6 +3,7 @@ import type {
   TRbacRoleDetailsNonResourceUrlPermission,
   TRbacRoleDetailsResourcePermission,
   TRbacRoleDetailsRuleOrigin,
+  TRbacSubjectPermissionGrantGroup,
 } from 'localTypes/rbacGraph'
 
 export type TTokenLike = {
@@ -43,4 +44,5 @@ export type TPermissionCellProps = {
   token: TTokenLike
   kindsWithVersion: TKindWithVersion[]
   matchValue: TMatchContext
+  grantGroups?: TRbacSubjectPermissionGrantGroup[]
 }

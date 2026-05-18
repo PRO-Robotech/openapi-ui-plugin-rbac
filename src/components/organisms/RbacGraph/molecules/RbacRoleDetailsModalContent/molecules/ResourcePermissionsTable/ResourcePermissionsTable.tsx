@@ -14,7 +14,6 @@ import type { TTokenLike } from '../../types'
 import { getVerbColor, sortVerbs } from '../../utils'
 import { PermissionCell } from '../PermissionCell'
 import { ResourceNamesBadge } from '../ResourceNamesBadge'
-import { GrantSourcesCell } from '../GrantSourcesCell'
 
 const { Text } = Typography
 
@@ -126,18 +125,6 @@ export const ResourcePermissionsTable: FC<TResourcePermissionsTableProps> = ({
           </span>
         ),
       },
-      ...(subjectGrantGroups
-        ? [
-            {
-              title: 'Granted By',
-              key: 'grantedBy',
-              width: 520,
-              render: (_: unknown, resource: TRbacRoleDetailsResourcePermission) => (
-                <GrantSourcesCell groups={grantsByResource.get(resource.resource) ?? []} />
-              ),
-            },
-          ]
-        : []),
       ...activeVerbs.map(verb => ({
         title: (
           <span style={{ color: getVerbColor(verb, token), fontSize: 11, textTransform: 'uppercase', fontWeight: 600 }}>
@@ -157,13 +144,14 @@ export const ResourcePermissionsTable: FC<TResourcePermissionsTableProps> = ({
             token={token}
             kindsWithVersion={kindsWithVersion}
             matchValue={{ apiGroup: group.apiGroup, resource: resource.resource, verb }}
+            grantGroups={(grantsByResource.get(resource.resource) ?? []).filter(grantGroup => grantGroup.verb === verb)}
           />
         ),
       })),
     ]
 
     return baseColumns
-  }, [activeVerbs, grantsByResource, group.apiGroup, kindsWithVersion, subjectGrantGroups, token])
+  }, [activeVerbs, grantsByResource, group.apiGroup, kindsWithVersion, token])
 
   return (
     <Table<TRbacRoleDetailsResourcePermission>
