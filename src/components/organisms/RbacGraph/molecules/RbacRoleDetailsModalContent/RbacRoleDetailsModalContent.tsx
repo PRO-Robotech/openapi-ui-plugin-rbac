@@ -14,12 +14,14 @@ type TRbacRoleDetailsModalContentProps = {
   data: TRbacRoleDetailsResponse
   kindsWithVersion: TKindWithVersion[]
   token: TTokenLike
+  showAssessment?: boolean
 }
 
 export const RbacRoleDetailsModalContent: FC<TRbacRoleDetailsModalContentProps> = ({
   data,
   kindsWithVersion,
   token,
+  showAssessment = true,
 }) => {
   if (data.resourceGroups.length === 0 && data.nonResourceUrls.length === 0) {
     return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No role details were returned for this node." />
@@ -27,10 +29,12 @@ export const RbacRoleDetailsModalContent: FC<TRbacRoleDetailsModalContentProps> 
 
   return (
     <Styled.Container style={{ color: token.colorText }}>
-      <Styled.AssessmentSection>
-        <Typography.Text strong>Assessment</Typography.Text>
-        <RbacAssessmentBar assessment={data.assessment} size="compact" />
-      </Styled.AssessmentSection>
+      {showAssessment && (
+        <Styled.AssessmentSection>
+          <Typography.Text strong>Assessment</Typography.Text>
+          <RbacAssessmentBar assessment={data.assessment} size="compact" />
+        </Styled.AssessmentSection>
+      )}
 
       {data.resourceGroups.map(group => (
         <ApiGroupSection
