@@ -95,6 +95,7 @@ type TScopeFilterItem = {
 const MIN_TABLE_HEIGHT = 320
 const TABLE_SCROLL_RESERVED_HEIGHT = 56
 const BINDING_NODE_TYPES = new Set<TRbacNode['type']>(['RoleBinding', 'ClusterRoleBinding'])
+const TAB_VIEW_PARAM = 'view'
 
 const normalizeReverseGraphForTable = (graph: TGraph): TGraph => {
   const nodeById = new Map(graph.nodes.map(node => [node.id, node] as const))
@@ -157,9 +158,22 @@ export const RbacTable: FC<TRbacTableProps> = ({ clusterId, mode = 'role' }) => 
   const autoSubmitAttemptedRef = useRef(false)
 
   if (!initialSearchStateRef.current) {
+    const parsedSearchState = normalizeRbacTableSearchState(parseRbacTableSearchParams(searchParams))
+
     initialSearchStateRef.current = isReverseMode
-      ? createDefaultReverseTableSearchState()
-      : normalizeRbacTableSearchState(parseRbacTableSearchParams(searchParams))
+      ? {
+          ...parsedSearchState,
+          payload: {
+            spec: {
+              ...(DEFAULT_REVERSE_PAYLOAD as TRbacSubjectsBySelectorGraphPayload).spec,
+              selector: parsedSearchState.selectorSelection,
+              matchMode: parsedSearchState.payload.spec.matchMode,
+              wildcardMode: parsedSearchState.payload.spec.wildcardMode,
+              filterPhantomAPIs: parsedSearchState.payload.spec.filterPhantomAPIs,
+            },
+          } as unknown as TRbacQueryPayload,
+        }
+      : parsedSearchState
   }
 
   const initialSearchState = initialSearchStateRef.current
@@ -364,10 +378,16 @@ export const RbacTable: FC<TRbacTableProps> = ({ clusterId, mode = 'role' }) => 
     [currentSearchState, searchNormalizationOptions],
   )
 
-  const canonicalSearchParams = useMemo(
-    () => serializeRbacTableSearchParams(normalizedSearchState, searchNormalizationOptions).toString(),
-    [normalizedSearchState, searchNormalizationOptions],
-  )
+  const canonicalSearchParams = useMemo(() => {
+    const nextSearchParams = serializeRbacTableSearchParams(normalizedSearchState, searchNormalizationOptions)
+    const activeView = searchParams.get(TAB_VIEW_PARAM)
+
+    if (activeView) {
+      nextSearchParams.set(TAB_VIEW_PARAM, activeView)
+    }
+
+    return nextSearchParams.toString()
+  }, [normalizedSearchState, searchNormalizationOptions, searchParams])
 
   const applySearchState = useCallback((nextState: TRbacTableSearchState) => {
     setPayload(nextState.payload)
@@ -848,14 +868,6 @@ export const RbacTable: FC<TRbacTableProps> = ({ clusterId, mode = 'role' }) => 
           }),
       },
       {
-        title: 'Assessment',
-        dataIndex: 'assessment',
-        key: 'assessment',
-        width: 200,
-        sorter: (left, right) => (left.assessment?.totalCount ?? 0) - (right.assessment?.totalCount ?? 0),
-        render: (_, row) => <RbacAssessmentBar assessment={row.assessment} size="compact" />,
-      },
-      {
         title: 'Roles',
         dataIndex: 'rolesCount',
         key: 'rolesCount',
@@ -963,23 +975,41 @@ export const RbacTable: FC<TRbacTableProps> = ({ clusterId, mode = 'role' }) => 
   const visibleRowsCount = isReverseMode ? filteredSubjectRows.length : filteredRoleRows.length
 
   useEffect(() => {
-    if (isReverseMode || canonicalSearchParams === appliedSearchParamsRef.current) return
+    if (canonicalSearchParams === appliedSearchParamsRef.current) return
 
     appliedSearchParamsRef.current = canonicalSearchParams
     setSearchParams(canonicalSearchParams ? new URLSearchParams(canonicalSearchParams) : new URLSearchParams(), {
       replace: true,
     })
-  }, [canonicalSearchParams, isReverseMode, setSearchParams])
+  }, [canonicalSearchParams, setSearchParams])
 
   useEffect(() => {
     if (autoSubmitAttemptedRef.current || !selectorMetadataSettled) return
 
     autoSubmitAttemptedRef.current = true
 
-    if (!isReverseMode && hasAnyRbacTableSearchState(normalizedSearchState, searchNormalizationOptions)) {
-      submitQuery(normalizedSearchState.payload)
+    if (!hasAnyRbacTableSearchState(normalizedSearchState, searchNormalizationOptions)) return
+    if (
+      isReverseMode &&
+      selectorSelection.apiGroups.length === 0 &&
+      selectorSelection.resources.length === 0 &&
+      selectorSelection.verbs.length === 0 &&
+      selectorSelection.resourceNames.length === 0 &&
+      selectorSelection.nonResourceURLs.length === 0
+    ) {
+      return
     }
-  }, [isReverseMode, normalizedSearchState, searchNormalizationOptions, selectorMetadataSettled, submitQuery])
+
+    submitQuery(isReverseMode ? payload : normalizedSearchState.payload)
+  }, [
+    isReverseMode,
+    normalizedSearchState,
+    payload,
+    searchNormalizationOptions,
+    selectorMetadataSettled,
+    selectorSelection,
+    submitQuery,
+  ])
 
   useEffect(() => {
     const updateTableHeight = () => {
@@ -1161,6 +1191,7 @@ export const RbacTable: FC<TRbacTableProps> = ({ clusterId, mode = 'role' }) => 
             data={subjectPermissionsQuery.data}
             kindsWithVersion={kindsData?.kindsWithVersion ?? []}
             token={roleDetailsToken}
+            showAssessment={false}
           />
         )
       }
@@ -1173,9 +1204,6 @@ export const RbacTable: FC<TRbacTableProps> = ({ clusterId, mode = 'role' }) => 
           </Descriptions.Item>
           <Descriptions.Item label="Roles">{selectedSubjectRow.rolesCount}</Descriptions.Item>
           <Descriptions.Item label="Bindings">{selectedSubjectRow.bindingsCount}</Descriptions.Item>
-          <Descriptions.Item label="Assessment" span={2}>
-            <RbacAssessmentBar assessment={selectedSubjectRow.assessment} size="compact" />
-          </Descriptions.Item>
           <Descriptions.Item label="Matched Rules">{selectedSubjectRow.matchedRuleCount}</Descriptions.Item>
           <Descriptions.Item label="Role Bindings" span={2}>
             {renderRoleBindings({

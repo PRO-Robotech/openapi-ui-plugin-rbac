@@ -138,6 +138,7 @@ export const RbacInlineDetailsSection: FC<TRbacInlineDetailsSectionProps> = ({ d
           data={filteredData}
           kindsWithVersion={kindsData?.kindsWithVersion ?? []}
           token={getRoleDetailsToken(token)}
+          showAssessment={isRoleDetails}
         />
       )
     }

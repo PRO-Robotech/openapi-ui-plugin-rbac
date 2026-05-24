@@ -19,6 +19,7 @@ import { useKindsRaw, useK8sSmartResource } from '@prorobotech/openapi-k8s-toolk
 import type { TNavigationResource } from '@prorobotech/openapi-k8s-toolkit'
 import { Alert, Card, Empty, Modal, Spin, theme } from 'antd'
 import axios from 'axios'
+import { useSearchParams } from 'react-router-dom'
 import { FOOTER_HEIGHT } from 'constants/blocksSizes'
 import type {
   TRbacQueryPayload,
@@ -51,14 +52,14 @@ import { NamespaceGroupNode, RbacEdge, RbacModalTitleLabel, RbacNodeCard } from 
 import { RbacGraphToggles, RbacQueryForm, RbacRoleDetailsModalContent } from './molecules'
 import { hasWildcard, toSortedOptions, decorateFlowModelWithResourceLabels } from './utils'
 import {
-  LEGEND,
-  DEFAULT_PAYLOAD,
-  DEFAULT_REVERSE_PAYLOAD,
-  DEFAULT_OPTIONS,
-  EMPTY_SELECTOR_SELECTION,
-  ROLE_NODE_TYPES,
-  SUBJECT_NODE_TYPES,
-} from './constants'
+  createDefaultRbacGraphSearchState,
+  hasAnyRbacGraphSearchState,
+  normalizeRbacGraphSearchState,
+  parseRbacGraphSearchParams,
+  serializeRbacGraphSearchParams,
+  type TRbacGraphSearchState,
+} from './utils/searchParams'
+import { LEGEND, EMPTY_SELECTOR_SELECTION, ROLE_NODE_TYPES, SUBJECT_NODE_TYPES } from './constants'
 import { Styled } from './styled'
 
 type TRbacGraphMode = 'role' | 'subject'
@@ -71,6 +72,8 @@ type TSubjectNode = TRbacNode & { type: TRbacSubjectKind }
 
 export const nodeTypes: NodeTypes = { rbacCard: RbacNodeCard, namespaceGroup: NamespaceGroupNode }
 export const edgeTypes: EdgeTypes = { rbacEdge: RbacEdge }
+
+const TAB_VIEW_PARAM = 'view'
 
 const getQueryErrorMessage = (error: unknown) => {
   if (axios.isAxiosError(error)) {
@@ -89,15 +92,27 @@ const getQueryErrorMessage = (error: unknown) => {
 }
 
 const RbacGraphInner: FC<TRbacGraphInnerProps> = ({ clusterId, mode = 'role' }) => {
+  const [searchParams, setSearchParams] = useSearchParams()
   const { token } = theme.useToken()
   const { fitView } = useReactFlow()
   const isReverseMode = mode === 'subject'
   const containerRef = useRef<HTMLDivElement | null>(null)
   const chromeRef = useRef<HTMLDivElement | null>(null)
+  const initialSearchStateRef = useRef<TRbacGraphSearchState>()
+  const appliedSearchParamsRef = useRef(searchParams.toString())
+  const autoSubmitAttemptedRef = useRef(false)
+
+  if (!initialSearchStateRef.current) {
+    initialSearchStateRef.current = normalizeRbacGraphSearchState(
+      parseRbacGraphSearchParams(searchParams, isReverseMode),
+    )
+  }
+
+  const initialSearchState = initialSearchStateRef.current
   const [payload, setPayload] = useState<
     TRbacQueryPayload | TRbacReverseQueryPayload | TRbacSubjectsBySelectorGraphPayload
-  >(isReverseMode ? DEFAULT_REVERSE_PAYLOAD : DEFAULT_PAYLOAD)
-  const [options, setOptions] = useState<TRbacGraphOptions>(DEFAULT_OPTIONS)
+  >(() => initialSearchState.payload)
+  const [options, setOptions] = useState<TRbacGraphOptions>(() => initialSearchState.options)
   const shouldFitViewAfterLayoutRef = useRef(false)
   const shouldFitViewAfterStarSwitchRef = useRef(false)
   const [focusNodeId, setFocusNodeId] = useState<string | null>(null)
@@ -109,6 +124,7 @@ const RbacGraphInner: FC<TRbacGraphInnerProps> = ({ clusterId, mode = 'role' }) 
   const [baseModel, setBaseModel] = useState<TFlowModel | null>(null)
   const [detailsNodeId, setDetailsNodeId] = useState<string | null>(null)
   const [queryErrorMessage, setQueryErrorMessage] = useState<string | null>(null)
+  const [collapseSignal, setCollapseSignal] = useState(0)
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
@@ -146,6 +162,9 @@ const RbacGraphInner: FC<TRbacGraphInnerProps> = ({ clusterId, mode = 'role' }) 
     isEnabled: Boolean(clusterId),
   })
   const baseFactoriesMapping = useMemo(() => getNavigationBaseFactoriesMapping(navigationData), [navigationData])
+  const selectorMetadataSettled = !kindsLoading && !nonResourceUrlsLoading
+  const canApplySelectorConstraints =
+    kindsData?.kindsWithVersion !== undefined && nonResourceUrlsData?.items !== undefined
 
   const selectedRoleNode = useMemo(() => {
     if (!graphData || !detailsNodeId) return null
@@ -205,7 +224,7 @@ const RbacGraphInner: FC<TRbacGraphInnerProps> = ({ clusterId, mode = 'role' }) 
 
   const kindsWithVersion = useMemo(() => kindsData?.kindsWithVersion ?? [], [kindsData?.kindsWithVersion])
 
-  const [selectorSelection, setSelectorSelection] = useState(EMPTY_SELECTOR_SELECTION)
+  const [selectorSelection, setSelectorSelection] = useState(() => initialSearchState.selectorSelection)
   const hasResourceFilters = Boolean(
     selectorSelection.apiGroups.length || selectorSelection.resources.length || selectorSelection.resourceNames.length,
   )
@@ -351,99 +370,70 @@ const RbacGraphInner: FC<TRbacGraphInnerProps> = ({ clusterId, mode = 'role' }) 
     ],
   )
 
+  const searchNormalizationOptions = useMemo(
+    () =>
+      canApplySelectorConstraints
+        ? {
+            collectResourceOptions: selectorRelations.collectResourceOptions,
+            collectNonResourceOptions: selectorRelations.collectNonResourceOptions,
+          }
+        : {},
+    [canApplySelectorConstraints, selectorRelations],
+  )
+
+  const currentSearchState = useMemo<TRbacGraphSearchState>(
+    () => ({
+      payload: payload as TRbacGraphSearchState['payload'],
+      selectorSelection,
+      options,
+    }),
+    [options, payload, selectorSelection],
+  )
+
+  const normalizedSearchState = useMemo(
+    () => normalizeRbacGraphSearchState(currentSearchState, searchNormalizationOptions),
+    [currentSearchState, searchNormalizationOptions],
+  )
+
+  const canonicalSearchParams = useMemo(() => {
+    const nextSearchParams = serializeRbacGraphSearchParams(normalizedSearchState, searchNormalizationOptions)
+    const activeView = searchParams.get(TAB_VIEW_PARAM)
+
+    if (activeView) {
+      nextSearchParams.set(TAB_VIEW_PARAM, activeView)
+    }
+
+    return nextSearchParams.toString()
+  }, [normalizedSearchState, searchNormalizationOptions, searchParams])
+
+  const applySearchState = useCallback((nextState: TRbacGraphSearchState) => {
+    setPayload(nextState.payload)
+    setSelectorSelection(nextState.selectorSelection)
+    setOptions(nextState.options)
+  }, [])
+
   const handleSelectorChange = useCallback(
     (sel: typeof selectorSelection, changedKey?: keyof typeof EMPTY_SELECTOR_SELECTION) => {
-      const isResourceSelector =
-        changedKey === 'apiGroups' || changedKey === 'resources' || changedKey === 'resourceNames'
-      const activatedResourceSelection =
-        changedKey !== undefined && isResourceSelector && Array.isArray(sel[changedKey]) && sel[changedKey].length > 0
-      const activatedNonResourceSelection = changedKey === 'nonResourceURLs' && sel.nonResourceURLs.length > 0
-
-      const selectionWithExclusiveMode = {
-        ...sel,
-        ...(activatedResourceSelection ? { nonResourceURLs: [] } : {}),
-        ...(activatedNonResourceSelection ? { apiGroups: [], resources: [], resourceNames: [] } : {}),
-      }
-
-      const nextApiGroups = selectionWithExclusiveMode.apiGroups.filter(group =>
-        selectorRelations.collectResourceOptions(selectionWithExclusiveMode, 'apiGroups').apiGroups.has(group),
-      )
-      const nextResources = selectionWithExclusiveMode.resources.filter(resource =>
-        selectorRelations
-          .collectResourceOptions(
-            {
-              ...selectionWithExclusiveMode,
-              apiGroups: nextApiGroups,
-            },
-            'resources',
-          )
-          .resources.has(resource),
-      )
-      const nextResourceNames = selectionWithExclusiveMode.resourceNames
-      const nextHasResourceFilters = Boolean(nextApiGroups.length || nextResources.length || nextResourceNames.length)
-      const nextHasNonResourceFilters = Boolean(selectionWithExclusiveMode.nonResourceURLs.length)
-      const allowedVerbs = new Set<string>()
-      const resourceVerbs = selectorRelations.collectResourceOptions(
-        {
-          ...selectionWithExclusiveMode,
-          apiGroups: nextApiGroups,
-          resources: nextResources,
-        },
-        'verbs',
-      ).verbs
-      const nonResourceVerbs = selectorRelations.collectNonResourceOptions(
-        { ...selectionWithExclusiveMode },
-        'verbs',
-      ).verbs
-
-      if (nextHasResourceFilters || !nextHasNonResourceFilters) {
-        resourceVerbs.forEach(verb => allowedVerbs.add(verb))
-      }
-
-      if (nextHasNonResourceFilters || !nextHasResourceFilters) {
-        nonResourceVerbs.forEach(verb => allowedVerbs.add(verb))
-      }
-
-      const nextVerbs = selectionWithExclusiveMode.verbs.filter(verb => allowedVerbs.has(verb))
-      const nextNonResourceURLs = selectionWithExclusiveMode.nonResourceURLs.filter(nonResourceURL =>
-        selectorRelations
-          .collectNonResourceOptions(
-            {
-              nonResourceURLs: selectionWithExclusiveMode.nonResourceURLs,
-              verbs: nextVerbs,
-            },
-            'nonResourceURLs',
-          )
-          .nonResourceURLs.has(nonResourceURL),
-      )
-      const nextSelection = {
-        ...sel,
-        apiGroups: nextApiGroups,
-        resources: nextResources,
-        resourceNames: nextResourceNames,
-        verbs: nextVerbs,
-        nonResourceURLs: nextNonResourceURLs,
-      }
-
-      setSelectorSelection(nextSelection)
-      setPayload(
-        prev =>
-          ({
-            spec: {
-              ...prev.spec,
-              selector: {
-                ...prev.spec.selector,
-                verbs: nextSelection.verbs,
-                apiGroups: nextSelection.apiGroups,
-                resources: nextSelection.resources,
-                resourceNames: nextSelection.resourceNames,
-                nonResourceURLs: nextSelection.nonResourceURLs,
+      applySearchState(
+        normalizeRbacGraphSearchState(
+          {
+            ...currentSearchState,
+            selectorSelection: sel,
+            payload: {
+              spec: {
+                ...payload.spec,
+                selector: sel,
               },
-            },
-          }) as TRbacQueryPayload | TRbacReverseQueryPayload | TRbacSubjectsBySelectorGraphPayload,
+            } as TRbacGraphSearchState['payload'],
+          },
+          {
+            ...searchNormalizationOptions,
+            changedKey,
+          },
+        ),
       )
     },
-    [selectorRelations],
+    [applySearchState, currentSearchState, payload.spec, searchNormalizationOptions],
   )
 
   useEffect(() => {
@@ -481,6 +471,14 @@ const RbacGraphInner: FC<TRbacGraphInnerProps> = ({ clusterId, mode = 'role' }) 
     selectorSelection,
   ])
 
+  useEffect(() => {
+    if (!canApplySelectorConstraints) return
+
+    if (JSON.stringify(currentSearchState) !== JSON.stringify(normalizedSearchState)) {
+      applySearchState(normalizedSearchState)
+    }
+  }, [applySearchState, canApplySelectorConstraints, currentSearchState, normalizedSearchState])
+
   const clearGraphView = useCallback(() => {
     setFocusNodeId(null)
     setStarSelectedNodeId(null)
@@ -492,70 +490,123 @@ const RbacGraphInner: FC<TRbacGraphInnerProps> = ({ clusterId, mode = 'role' }) 
     setEdges([])
   }, [setEdges, setNodes])
 
-  const handleSubmit = useCallback(() => {
-    setQueryErrorMessage(null)
-    const onSuccess = (data: TRbacQueryResponse) => {
+  const submitQuery = useCallback(
+    (nextPayload: TRbacQueryPayload | TRbacReverseQueryPayload | TRbacSubjectsBySelectorGraphPayload) => {
+      setCollapseSignal(prev => prev + 1)
       setQueryErrorMessage(null)
-      setGraphData(data.graph)
-      setStats(data.stats)
-      setFocusNodeId(null)
-      setStarSelectedNodeId(null)
-      setDetailsNodeId(null)
-    }
-    const onError = (error: unknown) => {
-      clearGraphView()
-      setQueryErrorMessage(getQueryErrorMessage(error))
-    }
+      const onSuccess = (data: TRbacQueryResponse) => {
+        setQueryErrorMessage(null)
+        setGraphData(data.graph)
+        setStats(data.stats)
+        setFocusNodeId(null)
+        setStarSelectedNodeId(null)
+        setDetailsNodeId(null)
+      }
+      const onError = (error: unknown) => {
+        clearGraphView()
+        setQueryErrorMessage(getQueryErrorMessage(error))
+      }
 
-    if (isReverseMode) {
-      reverseQueryMutation.mutate(payload as TRbacSubjectsBySelectorGraphPayload, {
+      if (isReverseMode) {
+        reverseQueryMutation.mutate(nextPayload as TRbacSubjectsBySelectorGraphPayload, {
+          onSuccess,
+          onError,
+        })
+        return
+      }
+
+      queryMutation.mutate(nextPayload as TRbacQueryPayload, {
         onSuccess,
         onError,
       })
-      return
-    }
+    },
+    [clearGraphView, isReverseMode, queryMutation, reverseQueryMutation],
+  )
 
-    queryMutation.mutate(payload as TRbacQueryPayload, {
-      onSuccess,
-      onError,
+  const handleSubmit = useCallback(() => {
+    submitQuery(payload)
+  }, [payload, submitQuery])
+
+  useEffect(() => {
+    if (canonicalSearchParams === appliedSearchParamsRef.current) return
+
+    appliedSearchParamsRef.current = canonicalSearchParams
+    setSearchParams(canonicalSearchParams ? new URLSearchParams(canonicalSearchParams) : new URLSearchParams(), {
+      replace: true,
     })
-  }, [clearGraphView, isReverseMode, payload, queryMutation, reverseQueryMutation])
+  }, [canonicalSearchParams, setSearchParams])
+
+  useEffect(() => {
+    if (autoSubmitAttemptedRef.current || !selectorMetadataSettled) return
+
+    autoSubmitAttemptedRef.current = true
+
+    if (!hasAnyRbacGraphSearchState(normalizedSearchState, searchNormalizationOptions)) return
+    if (
+      isReverseMode &&
+      selectorSelection.apiGroups.length === 0 &&
+      selectorSelection.resources.length === 0 &&
+      selectorSelection.verbs.length === 0 &&
+      selectorSelection.resourceNames.length === 0 &&
+      selectorSelection.nonResourceURLs.length === 0
+    )
+      return
+
+    submitQuery(normalizedSearchState.payload)
+  }, [
+    isReverseMode,
+    normalizedSearchState,
+    searchNormalizationOptions,
+    selectorMetadataSettled,
+    selectorSelection,
+    submitQuery,
+  ])
 
   const handleOptionsChange = useCallback(
     (nextOptions: TRbacGraphOptions) => {
-      setOptions(nextOptions)
-
-      if (isReverseMode) return
-
-      setPayload(prev => ({
-        spec: {
-          ...(prev as TRbacQueryPayload).spec,
-          includePods: nextOptions.includePods,
-          includeWorkloads: nextOptions.includeWorkloads,
-        },
-      }))
+      applySearchState(
+        normalizeRbacGraphSearchState(
+          {
+            ...currentSearchState,
+            options: nextOptions,
+            payload: isReverseMode
+              ? currentSearchState.payload
+              : ({
+                  spec: {
+                    ...(currentSearchState.payload as TRbacQueryPayload).spec,
+                    includePods: nextOptions.includePods,
+                    includeWorkloads: nextOptions.includeWorkloads,
+                  },
+                } as TRbacQueryPayload),
+          },
+          searchNormalizationOptions,
+        ),
+      )
     },
-    [isReverseMode],
+    [applySearchState, currentSearchState, isReverseMode, searchNormalizationOptions],
   )
 
   const handlePayloadChange = useCallback(
     (nextPayload: TRbacQueryPayload | TRbacReverseQueryPayload | TRbacSubjectsBySelectorGraphPayload) => {
-      setPayload(nextPayload)
+      applySearchState(
+        normalizeRbacGraphSearchState(
+          {
+            ...currentSearchState,
+            payload: nextPayload as TRbacGraphSearchState['payload'],
+            selectorSelection: nextPayload.spec.selector,
+          },
+          searchNormalizationOptions,
+        ),
+      )
     },
-    [],
+    [applySearchState, currentSearchState, searchNormalizationOptions],
   )
 
   const handleReset = useCallback(() => {
-    setPayload(isReverseMode ? DEFAULT_REVERSE_PAYLOAD : DEFAULT_PAYLOAD)
-    setOptions(DEFAULT_OPTIONS)
-    setSelectorSelection(EMPTY_SELECTOR_SELECTION)
+    applySearchState(createDefaultRbacGraphSearchState(isReverseMode))
     setQueryErrorMessage(null)
     clearGraphView()
-  }, [clearGraphView, isReverseMode])
-
-  useEffect(() => {
-    handleReset()
-  }, [handleReset])
+  }, [applySearchState, clearGraphView, isReverseMode])
 
   useEffect(() => {
     if (previousViewModeRef.current !== viewMode) {
@@ -825,6 +876,7 @@ const RbacGraphInner: FC<TRbacGraphInnerProps> = ({ clusterId, mode = 'role' }) 
             selectorLoading={kindsLoading || nonResourceUrlsLoading}
             selectorOptions={selectorOptions}
             showRuntimeLimits={!isReverseMode}
+            collapseSignal={collapseSignal}
             onSelectorChange={(patch, changedKey) =>
               handleSelectorChange({ ...selectorSelection, ...patch }, changedKey)
             }
@@ -993,6 +1045,7 @@ const RbacGraphInner: FC<TRbacGraphInnerProps> = ({ clusterId, mode = 'role' }) 
             data={subjectDetailsQuery.data}
             kindsWithVersion={kindsWithVersion}
             token={detailsToken}
+            showAssessment={false}
           />
         ) : (
           <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No RBAC details were returned for this node." />
