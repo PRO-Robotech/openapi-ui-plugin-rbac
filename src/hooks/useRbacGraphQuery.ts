@@ -16,7 +16,6 @@ export const useRbacGraphQuery = (clusterId: string) =>
           matchedBindings: data.status.matchedBindings,
           matchedSubjects: data.status.matchedSubjects,
         },
-        warnings: data.status.warnings,
       }
     },
   })

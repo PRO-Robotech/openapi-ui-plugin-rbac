@@ -130,14 +130,6 @@ export type TRbacSubjectsBySelectorGraphPayload = {
   }
 }
 
-export type TRbacQueryWarning =
-  | string
-  | {
-      code?: string
-      message?: string
-      roleCount?: number
-    }
-
 export type TRbacQueryResponse = {
   graph: TRbacGraph
   stats?: {
@@ -146,7 +138,7 @@ export type TRbacQueryResponse = {
     matchedSubjects?: number
   }
   resolvedSubjects?: TRbacSubjectRef[]
-  warnings?: TRbacQueryWarning[]
+  warnings?: unknown[]
   knownGaps?: string[]
 }
 
