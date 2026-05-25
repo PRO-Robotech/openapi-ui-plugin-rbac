@@ -33,17 +33,20 @@ import type {
   TRbacGraphProps,
   TNonResourceUrlItem,
   TNonResourceUrlList,
+  TRbacQueryWarning,
 } from 'localTypes/rbacGraph'
 import { useRbacGraphQuery } from 'hooks/useRbacGraphQuery'
 import { useRbacReverseGraphQuery } from 'hooks/useRbacReverseGraphQuery'
 import { useRbacRoleDetailsQuery } from 'hooks/useRbacRoleDetailsQuery'
 import { useRbacSubjectPermissionsQuery } from 'hooks/useRbacSubjectPermissionsQuery'
 import { RbacAssessmentBar } from 'components/organisms/RbacAssessment'
+import { RbacQueryWarningsAlert } from 'components/organisms/RbacQueryWarningsAlert'
 import { RbacModalTitleLabel } from 'components/organisms/RbacGraph/atoms'
 import { RbacQueryForm, RbacRoleDetailsModalContent } from 'components/organisms/RbacGraph/molecules'
 import { DEFAULT_REVERSE_PAYLOAD, ROLE_NODE_TYPES, SUBJECT_NODE_TYPES } from 'components/organisms/RbacGraph/constants'
 import { hasWildcard, toSortedOptions } from 'components/organisms/RbacGraph/utils'
 import { getNavigationBaseFactoriesMapping, getRbacResourceHref, RBAC_NAVIGATION_QUERY } from 'utils/rbacResourceLink'
+import { formatRbacQueryWarning } from 'utils/rbacWarnings'
 import {
   buildRoleTableRows,
   buildSubjectTableRows,
@@ -181,6 +184,7 @@ export const RbacTable: FC<TRbacTableProps> = ({ clusterId, mode = 'role' }) => 
   const [graphData, setGraphData] = useState<TGraph | null>(null)
   const [stats, setStats] = useState<TRbacQueryResponse['stats']>()
   const [queryErrorMessage, setQueryErrorMessage] = useState<string | null>(null)
+  const [queryWarnings, setQueryWarnings] = useState<TRbacQueryWarning[]>([])
   const [selectorSelection, setSelectorSelection] = useState<TSelectorSelection>(
     () => initialSearchState.selectorSelection,
   )
@@ -924,16 +928,19 @@ export const RbacTable: FC<TRbacTableProps> = ({ clusterId, mode = 'role' }) => 
     (nextPayload: TRbacTablePayload) => {
       setCollapseSignal(prev => prev + 1)
       setQueryErrorMessage(null)
+      setQueryWarnings([])
       const onSuccess = (data: TRbacQueryResponse) => {
         setQueryErrorMessage(null)
         setGraphData(isReverseMode ? normalizeReverseGraphForTable(data.graph) : data.graph)
         setStats(data.stats)
+        setQueryWarnings(data.warnings ?? [])
         setSelectedRowKey(null)
         setSelectedAggregatorRowKey(null)
       }
       const onError = (error: unknown) => {
         setGraphData(null)
         setStats(undefined)
+        setQueryWarnings([])
         setSelectedRowKey(null)
         setSelectedAggregatorRowKey(null)
         setQueryErrorMessage(getQueryErrorMessage(error))
@@ -964,12 +971,14 @@ export const RbacTable: FC<TRbacTableProps> = ({ clusterId, mode = 'role' }) => 
     setGraphData(null)
     setStats(undefined)
     setQueryErrorMessage(null)
+    setQueryWarnings([])
     setSelectedRowKey(null)
     setSelectedAggregatorRowKey(null)
   }, [applySearchState, isReverseMode])
 
   const nonResourceUrlsErrorMessage =
     typeof nonResourceUrlsError === 'string' ? nonResourceUrlsError : nonResourceUrlsError?.message
+  const queryWarningMessages = useMemo(() => queryWarnings.map(formatRbacQueryWarning), [queryWarnings])
   const roleDetailsToken = useMemo(() => getRoleDetailsToken(token), [token])
   const tableScrollY = useMemo(() => Math.max(240, tableHeight - TABLE_SCROLL_RESERVED_HEIGHT), [tableHeight])
   const visibleRowsCount = isReverseMode ? filteredSubjectRows.length : filteredRoleRows.length
@@ -1039,7 +1048,15 @@ export const RbacTable: FC<TRbacTableProps> = ({ clusterId, mode = 'role' }) => 
       resizeObserver.disconnect()
       window.removeEventListener('resize', updateTableHeight)
     }
-  }, [graphData, stats, kindsError, nonResourceUrlsError, queryErrorMessage, activeQueryMutation.isPending])
+  }, [
+    graphData,
+    stats,
+    kindsError,
+    nonResourceUrlsError,
+    queryErrorMessage,
+    queryWarnings,
+    activeQueryMutation.isPending,
+  ])
 
   const content = (() => {
     if (activeQueryMutation.isPending) {
@@ -1290,6 +1307,8 @@ export const RbacTable: FC<TRbacTableProps> = ({ clusterId, mode = 'role' }) => 
         {queryErrorMessage && (
           <Alert type="error" message="Error while running query" description={queryErrorMessage} />
         )}
+
+        <RbacQueryWarningsAlert warnings={queryWarningMessages} />
 
         {stats && (
           <Styled.StatsBar>

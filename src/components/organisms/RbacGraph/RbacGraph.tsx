@@ -34,14 +34,17 @@ import type {
   TNonResourceUrlList,
   TFlowModel,
   TRbacSubjectKind,
+  TRbacQueryWarning,
 } from 'localTypes/rbacGraph'
 import { useRbacGraphQuery } from 'hooks/useRbacGraphQuery'
 import { useRbacReverseGraphQuery } from 'hooks/useRbacReverseGraphQuery'
 import { useRbacRoleDetailsQuery } from 'hooks/useRbacRoleDetailsQuery'
 import { useRbacSubjectPermissionsQuery } from 'hooks/useRbacSubjectPermissionsQuery'
+import { RbacQueryWarningsAlert } from 'components/organisms/RbacQueryWarningsAlert'
 import { layoutRbacGraph } from 'utils/rbacForceLayout'
 import { layoutRbacGraphStar } from 'utils/rbacStarLayout'
 import { getNavigationBaseFactoriesMapping, getRbacResourceHref, RBAC_NAVIGATION_QUERY } from 'utils/rbacResourceLink'
+import { formatRbacQueryWarning } from 'utils/rbacWarnings'
 import {
   buildRbacFlowModel,
   applyFocusToModel,
@@ -124,6 +127,7 @@ const RbacGraphInner: FC<TRbacGraphInnerProps> = ({ clusterId, mode = 'role' }) 
   const [baseModel, setBaseModel] = useState<TFlowModel | null>(null)
   const [detailsNodeId, setDetailsNodeId] = useState<string | null>(null)
   const [queryErrorMessage, setQueryErrorMessage] = useState<string | null>(null)
+  const [queryWarnings, setQueryWarnings] = useState<TRbacQueryWarning[]>([])
   const [collapseSignal, setCollapseSignal] = useState(0)
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
@@ -485,6 +489,7 @@ const RbacGraphInner: FC<TRbacGraphInnerProps> = ({ clusterId, mode = 'role' }) 
     setBaseModel(null)
     setGraphData(null)
     setStats(undefined)
+    setQueryWarnings([])
     setDetailsNodeId(null)
     setNodes([])
     setEdges([])
@@ -494,16 +499,19 @@ const RbacGraphInner: FC<TRbacGraphInnerProps> = ({ clusterId, mode = 'role' }) 
     (nextPayload: TRbacQueryPayload | TRbacReverseQueryPayload | TRbacSubjectsBySelectorGraphPayload) => {
       setCollapseSignal(prev => prev + 1)
       setQueryErrorMessage(null)
+      setQueryWarnings([])
       const onSuccess = (data: TRbacQueryResponse) => {
         setQueryErrorMessage(null)
         setGraphData(data.graph)
         setStats(data.stats)
+        setQueryWarnings(data.warnings ?? [])
         setFocusNodeId(null)
         setStarSelectedNodeId(null)
         setDetailsNodeId(null)
       }
       const onError = (error: unknown) => {
         clearGraphView()
+        setQueryWarnings([])
         setQueryErrorMessage(getQueryErrorMessage(error))
       }
 
@@ -605,6 +613,7 @@ const RbacGraphInner: FC<TRbacGraphInnerProps> = ({ clusterId, mode = 'role' }) 
   const handleReset = useCallback(() => {
     applySearchState(createDefaultRbacGraphSearchState(isReverseMode))
     setQueryErrorMessage(null)
+    setQueryWarnings([])
     clearGraphView()
   }, [applySearchState, clearGraphView, isReverseMode])
 
@@ -786,6 +795,7 @@ const RbacGraphInner: FC<TRbacGraphInnerProps> = ({ clusterId, mode = 'role' }) 
   const isLoading = queryMutation.isPending || reverseQueryMutation.isPending || layouting
   const nonResourceUrlsErrorMessage =
     typeof nonResourceUrlsError === 'string' ? nonResourceUrlsError : nonResourceUrlsError?.message
+  const queryWarningMessages = useMemo(() => queryWarnings.map(formatRbacQueryWarning), [queryWarnings])
   const roleDetailsHref = useMemo(() => {
     if (!selectedRoleNode) return undefined
 
@@ -864,7 +874,7 @@ const RbacGraphInner: FC<TRbacGraphInnerProps> = ({ clusterId, mode = 'role' }) 
       resizeObserver.disconnect()
       window.removeEventListener('resize', updateCanvasHeight)
     }
-  }, [graphData, stats, kindsError, nonResourceUrlsError, isLoading])
+  }, [graphData, stats, kindsError, nonResourceUrlsError, queryWarnings, isLoading])
 
   return (
     <Styled.Container ref={containerRef}>
@@ -913,6 +923,8 @@ const RbacGraphInner: FC<TRbacGraphInnerProps> = ({ clusterId, mode = 'role' }) 
             style={{ marginTop: 8 }}
           />
         )}
+
+        <RbacQueryWarningsAlert warnings={queryWarningMessages} style={{ marginTop: 8 }} />
 
         <Card size="small" styles={{ body: { padding: 0 } }} style={{ marginTop: 8 }}>
           <RbacGraphToggles value={options} onChange={handleOptionsChange} showRuntimeOptions={!isReverseMode} />
