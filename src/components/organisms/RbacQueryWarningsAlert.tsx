@@ -7,6 +7,7 @@ type TRbacQueryWarningsAlertProps = {
 }
 
 const COLLAPSED_WARNING_COUNT = 1
+const WARNING_LIST_MAX_HEIGHT = 96
 
 export const RbacQueryWarningsAlert: FC<TRbacQueryWarningsAlertProps> = ({ warnings, style }) => {
   const [expanded, setExpanded] = useState(false)
@@ -25,11 +26,13 @@ export const RbacQueryWarningsAlert: FC<TRbacQueryWarningsAlertProps> = ({ warni
       message="Query completed with warnings"
       description={
         <div>
-          <ul style={{ margin: 0, paddingLeft: 18 }}>
-            {visibleWarnings.map(message => (
-              <li key={message}>{message}</li>
-            ))}
-          </ul>
+          <div style={{ maxHeight: WARNING_LIST_MAX_HEIGHT, overflowY: 'auto', paddingRight: 8 }}>
+            <ul style={{ margin: 0, paddingLeft: 18 }}>
+              {visibleWarnings.map(message => (
+                <li key={message}>{message}</li>
+              ))}
+            </ul>
+          </div>
 
           {warnings.length > COLLAPSED_WARNING_COUNT && (
             <Button

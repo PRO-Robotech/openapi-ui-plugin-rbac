@@ -77,6 +77,7 @@ export const nodeTypes: NodeTypes = { rbacCard: RbacNodeCard, namespaceGroup: Na
 export const edgeTypes: EdgeTypes = { rbacEdge: RbacEdge }
 
 const TAB_VIEW_PARAM = 'view'
+const MIN_CANVAS_HEIGHT = 180
 
 const getQueryErrorMessage = (error: unknown) => {
   if (axios.isAxiosError(error)) {
@@ -123,7 +124,7 @@ const RbacGraphInner: FC<TRbacGraphInnerProps> = ({ clusterId, mode = 'role' }) 
   const [graphData, setGraphData] = useState<TGraph | null>(null)
   const [stats, setStats] = useState<TRbacQueryResponse['stats']>()
   const [layouting, setLayouting] = useState(false)
-  const [canvasHeight, setCanvasHeight] = useState(320)
+  const [canvasHeight, setCanvasHeight] = useState(MIN_CANVAS_HEIGHT)
   const [baseModel, setBaseModel] = useState<TFlowModel | null>(null)
   const [detailsNodeId, setDetailsNodeId] = useState<string | null>(null)
   const [queryErrorMessage, setQueryErrorMessage] = useState<string | null>(null)
@@ -855,7 +856,7 @@ const RbacGraphInner: FC<TRbacGraphInnerProps> = ({ clusterId, mode = 'role' }) 
 
       const viewportHeight = window.innerHeight
       const nextHeight = Math.max(
-        320,
+        MIN_CANVAS_HEIGHT,
         Math.floor(viewportHeight - containerRect.top - chromeHeight - FOOTER_HEIGHT - 16),
       )
 
@@ -949,11 +950,11 @@ const RbacGraphInner: FC<TRbacGraphInnerProps> = ({ clusterId, mode = 'role' }) 
       </Styled.Chrome>
 
       {isLoading ? (
-        <Styled.SpinContainer>
+        <Styled.SpinContainer $height={canvasHeight}>
           <Spin tip="Computing layout..." />
         </Styled.SpinContainer>
       ) : !graphData ? (
-        <Styled.EmptyState>
+        <Styled.EmptyState $height={canvasHeight}>
           <Empty
             image={Empty.PRESENTED_IMAGE_SIMPLE}
             description="Configure selectors and run a query to visualize the RBAC graph."

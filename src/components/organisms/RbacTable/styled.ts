@@ -79,7 +79,7 @@ type TTableContainerProps = THeightProps & {
 
 const TableContainer = styled.div<TTableContainerProps>`
   height: ${({ $height }) => `${$height}px`};
-  min-height: 320px;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;

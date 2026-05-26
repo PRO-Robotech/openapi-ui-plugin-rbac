@@ -95,7 +95,7 @@ type TScopeFilterItem = {
   icon: React.ReactNode
 }
 
-const MIN_TABLE_HEIGHT = 320
+const MIN_TABLE_HEIGHT = 180
 const TABLE_SCROLL_RESERVED_HEIGHT = 56
 const BINDING_NODE_TYPES = new Set<TRbacNode['type']>(['RoleBinding', 'ClusterRoleBinding'])
 const TAB_VIEW_PARAM = 'view'
@@ -980,7 +980,7 @@ export const RbacTable: FC<TRbacTableProps> = ({ clusterId, mode = 'role' }) => 
     typeof nonResourceUrlsError === 'string' ? nonResourceUrlsError : nonResourceUrlsError?.message
   const queryWarningMessages = useMemo(() => queryWarnings.map(formatRbacQueryWarning), [queryWarnings])
   const roleDetailsToken = useMemo(() => getRoleDetailsToken(token), [token])
-  const tableScrollY = useMemo(() => Math.max(240, tableHeight - TABLE_SCROLL_RESERVED_HEIGHT), [tableHeight])
+  const tableScrollY = useMemo(() => Math.max(120, tableHeight - TABLE_SCROLL_RESERVED_HEIGHT), [tableHeight])
   const visibleRowsCount = isReverseMode ? filteredSubjectRows.length : filteredRoleRows.length
 
   useEffect(() => {
