@@ -11,6 +11,7 @@ import {
 import { useTheme } from 'hooks/ThemeModeContext'
 import { buildRoleDetailsBreadcrumbs } from 'utils/rbacBreadcrumbs'
 import { getPluginBasePath } from 'utils/getPluginBasePath'
+import { RbacResourceBadge } from 'utils/rbacResourceBadge'
 import { buildRoleDetailsFactory } from './buildRoleDetailsFactory'
 
 export type TRoleDetailsPageComponentMap = TDynamicComponentsAppTypeMap & {
@@ -32,6 +33,7 @@ export const RoleDetailsPage: FC<TRoleDetailsPageProps> = ({ cluster }) => {
   const components = useMemo(
     () => ({
       ...DynamicComponents,
+      ResourceBadge: RbacResourceBadge,
       RbacInlineDetailsSection,
     }),
     [],

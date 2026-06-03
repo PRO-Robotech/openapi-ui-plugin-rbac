@@ -11,6 +11,7 @@ import {
 import { useTheme } from 'hooks/ThemeModeContext'
 import { buildClusterRoleDetailsBreadcrumbs } from 'utils/rbacBreadcrumbs'
 import { getPluginBasePath } from 'utils/getPluginBasePath'
+import { RbacResourceBadge } from 'utils/rbacResourceBadge'
 import { buildClusterRoleDetailsFactory } from './buildClusterRoleDetailsFactory'
 
 export type TClusterRoleDetailsPageComponentMap = TDynamicComponentsAppTypeMap & {
@@ -32,6 +33,7 @@ export const ClusterRoleDetailsPage: FC<TClusterRoleDetailsPageProps> = ({ clust
   const components = useMemo(
     () => ({
       ...DynamicComponents,
+      ResourceBadge: RbacResourceBadge,
       RbacInlineDetailsSection,
     }),
     [],

@@ -11,6 +11,7 @@ import {
 import { useTheme } from 'hooks/ThemeModeContext'
 import { buildAccountDetailsBreadcrumbs } from 'utils/rbacBreadcrumbs'
 import { getPluginBasePath } from 'utils/getPluginBasePath'
+import { RbacResourceBadge } from 'utils/rbacResourceBadge'
 import { buildAccountDetailsFactory, type TAccountDetailsKind } from './buildAccountDetailsFactory'
 
 export type TAccountDetailsPageComponentMap = TDynamicComponentsAppTypeMap & {
@@ -60,6 +61,7 @@ export const AccountDetailsPage: FC<TAccountDetailsPageProps> = ({ cluster }) =>
   const components = useMemo(
     () => ({
       ...DynamicComponents,
+      ResourceBadge: RbacResourceBadge,
       RbacInlineDetailsSection,
     }),
     [],

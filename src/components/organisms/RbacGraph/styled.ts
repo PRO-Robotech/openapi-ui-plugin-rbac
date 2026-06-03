@@ -381,10 +381,21 @@ const ResourceLabel = styled.span`
 
 const ResourceBadgeAbbr = styled.span<{ $bgColor: string }>`
   background-color: ${({ $bgColor }) => $bgColor};
-  border-radius: 13px;
-  padding: 1px 5px;
-  font-size: 13px;
-  height: min-content;
+  border: 1px solid ${({ $bgColor }) => $bgColor};
+  border-radius: 4px;
+  padding: 0 7px;
+  height: 22px;
+  font-family: 'SF Pro', sans-serif;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 400;
+  line-height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-transform: uppercase;
+  letter-spacing: 0;
+  box-sizing: border-box;
   flex-shrink: 0;
 `
 

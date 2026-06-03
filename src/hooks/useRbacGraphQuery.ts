@@ -1,6 +1,7 @@
 import { useMutation } from '@tanstack/react-query'
 import axios from 'axios'
 import type { TRbacQueryPayload, TRbacQueryResponse } from 'localTypes/rbacGraph'
+import { getRbacQueryWarnings } from 'utils/rbacWarnings'
 
 export const useRbacGraphQuery = (clusterId: string) =>
   useMutation({
@@ -16,7 +17,7 @@ export const useRbacGraphQuery = (clusterId: string) =>
           matchedBindings: data.status.matchedBindings,
           matchedSubjects: data.status.matchedSubjects,
         },
-        warnings: data.status.warnings,
+        warnings: getRbacQueryWarnings(data.status),
       }
     },
   })

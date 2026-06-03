@@ -138,6 +138,11 @@ export type TRbacQueryWarning =
       roleCount?: number
     }
 
+export type TRbacExpansionTruncation = {
+  limit?: number
+  messages?: string[]
+}
+
 export type TRbacQueryResponse = {
   graph: TRbacGraph
   stats?: {
