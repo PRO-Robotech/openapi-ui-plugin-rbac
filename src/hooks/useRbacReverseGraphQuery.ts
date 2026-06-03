@@ -1,6 +1,7 @@
 import { useMutation } from '@tanstack/react-query'
 import axios from 'axios'
 import type { TRbacQueryResponse, TRbacSubjectsBySelectorGraphPayload } from 'localTypes/rbacGraph'
+import { getRbacQueryWarnings } from 'utils/rbacWarnings'
 
 export const useRbacReverseGraphQuery = (clusterId: string) =>
   useMutation({
@@ -16,7 +17,7 @@ export const useRbacReverseGraphQuery = (clusterId: string) =>
           matchedBindings: data.status.matchedBindings,
           matchedSubjects: data.status.matchedSubjects,
         },
-        warnings: data.status.warnings,
+        warnings: getRbacQueryWarnings(data.status),
       }
     },
   })
