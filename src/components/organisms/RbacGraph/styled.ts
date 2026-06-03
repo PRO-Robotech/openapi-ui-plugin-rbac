@@ -13,6 +13,10 @@ type TCanvasWrapperProps = {
   $boxShadowSecondary: string
 }
 
+type THeightProps = {
+  $height?: number
+}
+
 type TDetailsThemeProps = {
   $colorBgElevated: string
   $colorBgContainer: string
@@ -42,7 +46,7 @@ const Chrome = styled.div`
 
 const CanvasWrapper = styled.div<TCanvasWrapperProps>`
   height: ${({ $height }) => `${$height}px`};
-  min-height: 320px;
+  min-height: 0;
   position: relative;
 
   .react-flow__edge {
@@ -128,20 +132,20 @@ const LegendSwatch = styled.span<{ $color: string; $dashed?: boolean }>`
   border-top: 2px ${({ $dashed }) => ($dashed ? 'dashed' : 'solid')} ${({ $color }) => $color};
 `
 
-const SpinContainer = styled.div`
+const SpinContainer = styled.div<THeightProps>`
   display: flex;
   align-items: center;
   justify-content: center;
   flex: 1;
-  min-height: 300px;
+  min-height: ${({ $height = 240 }) => `${$height}px`};
 `
 
-const EmptyState = styled.div`
+const EmptyState = styled.div<THeightProps>`
   display: flex;
   align-items: center;
   justify-content: center;
   flex: 1;
-  min-height: 300px;
+  min-height: ${({ $height = 240 }) => `${$height}px`};
   padding: 24px 16px;
 `
 

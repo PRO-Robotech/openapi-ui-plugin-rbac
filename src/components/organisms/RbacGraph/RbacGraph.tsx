@@ -34,14 +34,17 @@ import type {
   TNonResourceUrlList,
   TFlowModel,
   TRbacSubjectKind,
+  TRbacQueryWarning,
 } from 'localTypes/rbacGraph'
 import { useRbacGraphQuery } from 'hooks/useRbacGraphQuery'
 import { useRbacReverseGraphQuery } from 'hooks/useRbacReverseGraphQuery'
 import { useRbacRoleDetailsQuery } from 'hooks/useRbacRoleDetailsQuery'
 import { useRbacSubjectPermissionsQuery } from 'hooks/useRbacSubjectPermissionsQuery'
+import { RbacQueryWarningsAlert } from 'components/organisms/RbacQueryWarningsAlert'
 import { layoutRbacGraph } from 'utils/rbacForceLayout'
 import { layoutRbacGraphStar } from 'utils/rbacStarLayout'
 import { getNavigationBaseFactoriesMapping, getRbacResourceHref, RBAC_NAVIGATION_QUERY } from 'utils/rbacResourceLink'
+import { formatRbacQueryWarning } from 'utils/rbacWarnings'
 import {
   buildRbacFlowModel,
   applyFocusToModel,
@@ -74,6 +77,7 @@ export const nodeTypes: NodeTypes = { rbacCard: RbacNodeCard, namespaceGroup: Na
 export const edgeTypes: EdgeTypes = { rbacEdge: RbacEdge }
 
 const TAB_VIEW_PARAM = 'view'
+const MIN_CANVAS_HEIGHT = 180
 
 const getQueryErrorMessage = (error: unknown) => {
   if (axios.isAxiosError(error)) {
@@ -120,10 +124,11 @@ const RbacGraphInner: FC<TRbacGraphInnerProps> = ({ clusterId, mode = 'role' }) 
   const [graphData, setGraphData] = useState<TGraph | null>(null)
   const [stats, setStats] = useState<TRbacQueryResponse['stats']>()
   const [layouting, setLayouting] = useState(false)
-  const [canvasHeight, setCanvasHeight] = useState(320)
+  const [canvasHeight, setCanvasHeight] = useState(MIN_CANVAS_HEIGHT)
   const [baseModel, setBaseModel] = useState<TFlowModel | null>(null)
   const [detailsNodeId, setDetailsNodeId] = useState<string | null>(null)
   const [queryErrorMessage, setQueryErrorMessage] = useState<string | null>(null)
+  const [queryWarnings, setQueryWarnings] = useState<TRbacQueryWarning[]>([])
   const [collapseSignal, setCollapseSignal] = useState(0)
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
@@ -485,6 +490,7 @@ const RbacGraphInner: FC<TRbacGraphInnerProps> = ({ clusterId, mode = 'role' }) 
     setBaseModel(null)
     setGraphData(null)
     setStats(undefined)
+    setQueryWarnings([])
     setDetailsNodeId(null)
     setNodes([])
     setEdges([])
@@ -494,16 +500,19 @@ const RbacGraphInner: FC<TRbacGraphInnerProps> = ({ clusterId, mode = 'role' }) 
     (nextPayload: TRbacQueryPayload | TRbacReverseQueryPayload | TRbacSubjectsBySelectorGraphPayload) => {
       setCollapseSignal(prev => prev + 1)
       setQueryErrorMessage(null)
+      setQueryWarnings([])
       const onSuccess = (data: TRbacQueryResponse) => {
         setQueryErrorMessage(null)
         setGraphData(data.graph)
         setStats(data.stats)
+        setQueryWarnings(data.warnings ?? [])
         setFocusNodeId(null)
         setStarSelectedNodeId(null)
         setDetailsNodeId(null)
       }
       const onError = (error: unknown) => {
         clearGraphView()
+        setQueryWarnings([])
         setQueryErrorMessage(getQueryErrorMessage(error))
       }
 
@@ -605,6 +614,7 @@ const RbacGraphInner: FC<TRbacGraphInnerProps> = ({ clusterId, mode = 'role' }) 
   const handleReset = useCallback(() => {
     applySearchState(createDefaultRbacGraphSearchState(isReverseMode))
     setQueryErrorMessage(null)
+    setQueryWarnings([])
     clearGraphView()
   }, [applySearchState, clearGraphView, isReverseMode])
 
@@ -786,6 +796,7 @@ const RbacGraphInner: FC<TRbacGraphInnerProps> = ({ clusterId, mode = 'role' }) 
   const isLoading = queryMutation.isPending || reverseQueryMutation.isPending || layouting
   const nonResourceUrlsErrorMessage =
     typeof nonResourceUrlsError === 'string' ? nonResourceUrlsError : nonResourceUrlsError?.message
+  const queryWarningMessages = useMemo(() => queryWarnings.map(formatRbacQueryWarning), [queryWarnings])
   const roleDetailsHref = useMemo(() => {
     if (!selectedRoleNode) return undefined
 
@@ -845,7 +856,7 @@ const RbacGraphInner: FC<TRbacGraphInnerProps> = ({ clusterId, mode = 'role' }) 
 
       const viewportHeight = window.innerHeight
       const nextHeight = Math.max(
-        320,
+        MIN_CANVAS_HEIGHT,
         Math.floor(viewportHeight - containerRect.top - chromeHeight - FOOTER_HEIGHT - 16),
       )
 
@@ -864,7 +875,7 @@ const RbacGraphInner: FC<TRbacGraphInnerProps> = ({ clusterId, mode = 'role' }) 
       resizeObserver.disconnect()
       window.removeEventListener('resize', updateCanvasHeight)
     }
-  }, [graphData, stats, kindsError, nonResourceUrlsError, isLoading])
+  }, [graphData, stats, kindsError, nonResourceUrlsError, queryWarnings, isLoading])
 
   return (
     <Styled.Container ref={containerRef}>
@@ -914,6 +925,8 @@ const RbacGraphInner: FC<TRbacGraphInnerProps> = ({ clusterId, mode = 'role' }) 
           />
         )}
 
+        <RbacQueryWarningsAlert warnings={queryWarningMessages} style={{ marginTop: 8 }} />
+
         <Card size="small" styles={{ body: { padding: 0 } }} style={{ marginTop: 8 }}>
           <RbacGraphToggles value={options} onChange={handleOptionsChange} showRuntimeOptions={!isReverseMode} />
         </Card>
@@ -937,11 +950,11 @@ const RbacGraphInner: FC<TRbacGraphInnerProps> = ({ clusterId, mode = 'role' }) 
       </Styled.Chrome>
 
       {isLoading ? (
-        <Styled.SpinContainer>
+        <Styled.SpinContainer $height={canvasHeight}>
           <Spin tip="Computing layout..." />
         </Styled.SpinContainer>
       ) : !graphData ? (
-        <Styled.EmptyState>
+        <Styled.EmptyState $height={canvasHeight}>
           <Empty
             image={Empty.PRESENTED_IMAGE_SIMPLE}
             description="Configure selectors and run a query to visualize the RBAC graph."
