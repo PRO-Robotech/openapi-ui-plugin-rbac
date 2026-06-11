@@ -1,9 +1,5 @@
 import React, { FC } from 'react'
-import {
-  getUppercase,
-  hslFromString,
-  type TDynamicComponentsAppTypeMap,
-} from '@prorobotech/openapi-k8s-toolkit'
+import { getUppercase, hslFromString, type TDynamicComponentsAppTypeMap } from '@prorobotech/openapi-k8s-toolkit'
 import { useThemeMode } from 'hooks/useThemeMode'
 
 export const getRbacResourceBadgeStyle = (bgColor: string): React.CSSProperties => ({
@@ -37,4 +33,3 @@ export const RbacResourceBadge: FC<{ data: TDynamicComponentsAppTypeMap['Resourc
 
   return renderRbacResourceBadge(data.value, mode, data.abbreviation || data.value)
 }
-
